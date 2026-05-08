@@ -56,14 +56,14 @@ export default function ProductionWizardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6">
       <header className="mb-6 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
           <Factory size={20} />
         </div>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-900">Üretim Girişi</h1>
-          <p className="text-sm text-slate-500">Bugün üretilen ürünü 4 adımda girin</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Üretim Girişi</h1>
+          <p className="text-xs text-slate-500 sm:text-sm">Bugün üretilen ürünü 4 adımda girin</p>
         </div>
         <button type="button" onClick={reset} className="btn-secondary text-xs">
           <RotateCcw size={14} /> Sıfırla
@@ -122,7 +122,7 @@ export default function ProductionWizardPage() {
 
         {step === 1 && (
           <Step title={`${type?.name} - hangi beden?`}>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {(detail?.sizes ?? []).map((s) => (
                 <BigCard
                   key={s.id}
@@ -132,8 +132,8 @@ export default function ProductionWizardPage() {
                     setStep(2);
                   }}
                 >
-                  <div className="text-xs font-mono text-slate-400">{s.code}</div>
-                  <div className="mt-1 text-2xl font-bold text-slate-900">{s.label}</div>
+                  <div className="text-[10px] font-mono text-slate-400 break-all">{s.code}</div>
+                  <div className="mt-1 text-base font-bold text-slate-900 break-words sm:text-xl md:text-2xl">{s.label}</div>
                   {s.value && (
                     <div className="text-xs text-slate-500">
                       {s.value} {s.unit ?? ''}
@@ -150,7 +150,7 @@ export default function ProductionWizardPage() {
 
         {step === 2 && (
           <Step title={`${type?.name} ${size?.label} - hangi renk?`}>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {(detail?.colors ?? []).map((c) => {
                 const v = detail?.variants.find(
                   (x) => x.size_id === size.id && x.color_id === c.id,
