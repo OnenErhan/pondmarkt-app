@@ -22,7 +22,7 @@ export default function Login() {
     setError(null);
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signIn(email.trim(), password);
       const dest = location.state?.from?.pathname ?? '/';
       navigate(dest, { replace: true });
     } catch (err) {
@@ -64,6 +64,10 @@ export default function Login() {
             type="email"
             required
             autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="input pl-9"
@@ -84,6 +88,9 @@ export default function Login() {
             type="password"
             required
             autoComplete="current-password"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="input pl-9"
