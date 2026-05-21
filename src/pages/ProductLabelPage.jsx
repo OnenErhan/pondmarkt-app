@@ -6,9 +6,26 @@ import bwipjs from 'bwip-js';
 import { supabase } from '../lib/supabase/client.js';
 import Barcode from '../components/Barcode.jsx';
 
-function buildSerial(sku, dateStr, seq) {
+function buildSerial(dateStr, seq) {
   const datePart = dateStr.replace(/-/g, '');
-  return `${sku}-${datePart}-${String(seq).padStart(3, '0')}`;
+  return `${datePart}-${String(seq).padStart(3, '0')}`;
+}
+
+// jsPDF default font doesn't support Turkish chars — normalize before rendering
+function normTr(str) {
+  return (str ?? '')
+    .replace(/ı/g, 'i')
+    .replace(/İ/g, 'I')
+    .replace(/ğ/g, 'g')
+    .replace(/Ğ/g, 'G')
+    .replace(/ş/g, 's')
+    .replace(/Ş/g, 'S')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C')
+    .replace(/ö/g, 'o')
+    .replace(/Ö/g, 'O')
+    .replace(/ü/g, 'u')
+    .replace(/Ü/g, 'U');
 }
 
 export default function ProductLabelPage() {
@@ -73,10 +90,10 @@ export default function ProductLabelPage() {
       pdf.setDrawColor(220);
       pdf.rect(x, y, labelW, labelH);
       pdf.setFontSize(9);
-      pdf.text(variant.product_types?.name ?? '', x + 3, y + 5);
+      pdf.text(normTr(variant.product_types?.name ?? ''), x + 3, y + 5);
       pdf.setFontSize(7);
       pdf.text(
-        `${variant.product_colors?.label ?? ''} · ${variant.product_sizes?.label ?? ''}`,
+        normTr(`${variant.product_colors?.label ?? ''} · ${variant.product_sizes?.label ?? ''}`),
         x + 3,
         y + 9,
       );
@@ -87,7 +104,7 @@ export default function ProductLabelPage() {
         pdf.text(variant.sku, x + labelW / 2, y + 24, { align: 'center' });
         pdf.setFontSize(6.5);
         pdf.setTextColor(80, 80, 200);
-        pdf.text(buildSerial(variant.sku, serialDate, startSeq + i), x + labelW / 2, y + 28, { align: 'center' });
+        pdf.text(buildSerial(serialDate, startSeq + i), x + labelW / 2, y + 28, { align: 'center' });
         pdf.setTextColor(0, 0, 0);
       } else {
         pdf.addImage(barcodeImg, 'PNG', x + 3, y + 11, labelW - 6, 12);
@@ -131,7 +148,7 @@ export default function ProductLabelPage() {
             <p className="text-center text-xs font-mono mt-1">{variant.sku}</p>
             {serialMode && (
               <p className="text-center text-[11px] font-mono mt-0.5 text-indigo-600">
-                {buildSerial(variant.sku, serialDate, startSeq)}
+                {buildSerial(serialDate, startSeq)}
               </p>
             )}
           </div>
@@ -204,7 +221,7 @@ export default function ProductLabelPage() {
                   onChange={(e) => setStartSeq(Number(e.target.value) || 1)}
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Örnek: {buildSerial(variant.sku, serialDate, startSeq)} … {buildSerial(variant.sku, serialDate, startSeq + count - 1)}
+                  Örnek: {buildSerial(serialDate, startSeq)} … {buildSerial(serialDate, startSeq + count - 1)}
                 </p>
               </div>
             </div>
