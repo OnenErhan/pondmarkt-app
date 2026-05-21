@@ -19,6 +19,9 @@ export default function ProductionWizardPage() {
   const { data: types = [] } = useProductTypes();
   const { data: detail } = useProductTypeDetail(type?.id);
   const record = useRecordProduction();
+  const sortedTypes = useMemo(() => sortTypes(types), [types]);
+  const sortedSizes = useMemo(() => sortSizes(detail?.sizes ?? []), [detail?.sizes]);
+  const sortedColors = useMemo(() => sortColors(detail?.colors ?? []), [detail?.colors]);
 
   const variant = useMemo(() => {
     if (!detail || !size || !color) return null;
@@ -93,7 +96,7 @@ export default function ProductionWizardPage() {
         {step === 0 && (
           <Step title="Hangi ürün tipi üretildi?">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {types.map((t) => (
+              {sortedTypes.map((t) => (
                 <BigCard
                   key={t.id}
                   active={type?.id === t.id}
@@ -108,7 +111,7 @@ export default function ProductionWizardPage() {
                   <div className="mt-1 text-lg font-semibold text-slate-900">{t.name}</div>
                 </BigCard>
               ))}
-              {types.length === 0 && (
+              {sortedTypes.length === 0 && (
                 <p className="col-span-full text-sm text-slate-400">
                   Henüz ürün tipi yok.{' '}
                   <Link to="/products" className="text-brand-600 hover:underline">
@@ -123,7 +126,7 @@ export default function ProductionWizardPage() {
         {step === 1 && (
           <Step title={`${type?.name} - hangi beden?`}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {(detail?.sizes ?? []).map((s) => (
+              {sortedSizes.map((s) => (
                 <BigCard
                   key={s.id}
                   active={size?.id === s.id}
@@ -141,7 +144,7 @@ export default function ProductionWizardPage() {
                   )}
                 </BigCard>
               ))}
-              {detail && detail.sizes.length === 0 && (
+              {detail && sortedSizes.length === 0 && (
                 <p className="col-span-full text-sm text-slate-400">Bu tipe beden tanımlı değil</p>
               )}
             </div>
@@ -151,7 +154,7 @@ export default function ProductionWizardPage() {
         {step === 2 && (
           <Step title={`${type?.name} ${size?.label} - hangi renk?`}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {(detail?.colors ?? []).map((c) => {
+              {sortedColors.map((c) => {
                 const v = detail?.variants.find(
                   (x) => x.size_id === size.id && x.color_id === c.id,
                 );
@@ -182,7 +185,7 @@ export default function ProductionWizardPage() {
                   </BigCard>
                 );
               })}
-              {detail && detail.colors.length === 0 && (
+              {detail && sortedColors.length === 0 && (
                 <p className="col-span-full text-sm text-slate-400">Bu tipe renk tanımlı değil</p>
               )}
             </div>
@@ -312,5 +315,45 @@ function BigCard({ active, disabled, onClick, children }) {
     >
       {children}
     </button>
+  );
+}
+
+function sortTypes(items = []) {
+  return [...items].sort((a, b) =>
+    String(a?.code ?? a?.name ?? '').localeCompare(String(b?.code ?? b?.name ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    }),
+  );
+}
+
+function sortSizes(items = []) {
+  return [...items].sort((a, b) => {
+    const left = toSortableNumber(a?.value);
+    const right = toSortableNumber(b?.value);
+    const leftIsNumber = !Number.isNaN(left);
+    const rightIsNumber = !Number.isNaN(right);
+
+    if (leftIsNumber && rightIsNumber && left !== right) return left - right;
+    if (leftIsNumber !== rightIsNumber) return leftIsNumber ? -1 : 1;
+
+    return String(a?.label ?? '').localeCompare(String(b?.label ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
+}
+
+function toSortableNumber(value) {
+  if (value === null || value === undefined || value === '') return Number.NaN;
+  return Number(value);
+}
+
+function sortColors(items = []) {
+  return [...items].sort((a, b) =>
+    String(a?.label ?? a?.code ?? '').localeCompare(String(b?.label ?? b?.code ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    }),
   );
 }

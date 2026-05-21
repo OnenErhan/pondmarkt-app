@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Plus,
@@ -36,6 +36,8 @@ export default function ProductTypeDetailPage() {
   if (!data?.type) return <p className="p-6">Ürün bulunamadı</p>;
 
   const { type, sizes, colors, variants } = data;
+  const sortedSizes = useMemo(() => sortSizes(sizes), [sizes]);
+  const sortedColors = useMemo(() => sortColors(colors), [colors]);
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -71,11 +73,11 @@ export default function ProductTypeDetailPage() {
               <Plus size={14} /> Ekle
             </button>
           </div>
-          {sizes.length === 0 ? (
+          {sortedSizes.length === 0 ? (
             <p className="py-4 text-center text-xs text-slate-400">Henüz boyut yok</p>
           ) : (
             <div className="space-y-1">
-              {sizes.map((s) => (
+              {sortedSizes.map((s) => (
                 <Row
                   key={s.id}
                   code={s.code}
@@ -105,11 +107,11 @@ export default function ProductTypeDetailPage() {
               <Plus size={14} /> Ekle
             </button>
           </div>
-          {colors.length === 0 ? (
+          {sortedColors.length === 0 ? (
             <p className="py-4 text-center text-xs text-slate-400">Henüz renk yok</p>
           ) : (
             <div className="space-y-1">
-              {colors.map((c) => (
+              {sortedColors.map((c) => (
                 <Row
                   key={c.id}
                   code={c.code}
@@ -133,16 +135,16 @@ export default function ProductTypeDetailPage() {
             Varyantlar
           </h2>
           <p className="text-xs text-slate-500">
-            {variants.length} / {sizes.length * colors.length} olası varyant
+            {variants.length} / {sortedSizes.length * sortedColors.length} olası varyant
           </p>
         </div>
-        {sizes.length === 0 || colors.length === 0 ? (
+        {sortedSizes.length === 0 || sortedColors.length === 0 ? (
           <EmptyState
             title="Önce boyut ve renk ekleyin"
             message="Varyantlar boyut + renk kombinasyonundan otomatik oluşur"
           />
         ) : (
-          <VariantMatrix type={type} sizes={sizes} colors={colors} variants={variants} />
+          <VariantMatrix type={type} sizes={sortedSizes} colors={sortedColors} variants={variants} />
         )}
       </section>
 
@@ -466,4 +468,47 @@ function VariantMatrix({ type, sizes, colors, variants }) {
       </table>
     </div>
   );
+}
+
+function sortSizes(items = []) {
+  return [...items].sort((a, b) => {
+    const left = toSortableNumber(a?.value);
+    const right = toSortableNumber(b?.value);
+    const leftIsNumber = !Number.isNaN(left);
+    const rightIsNumber = !Number.isNaN(right);
+
+    if (leftIsNumber && rightIsNumber && left !== right) return left - right;
+    if (leftIsNumber !== rightIsNumber) return leftIsNumber ? -1 : 1;
+
+    const labelCmp = String(a?.label ?? '').localeCompare(String(b?.label ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+    if (labelCmp !== 0) return labelCmp;
+
+    return String(a?.code ?? '').localeCompare(String(b?.code ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
+}
+
+function toSortableNumber(value) {
+  if (value === null || value === undefined || value === '') return Number.NaN;
+  return Number(value);
+}
+
+function sortColors(items = []) {
+  return [...items].sort((a, b) => {
+    const labelCmp = String(a?.label ?? '').localeCompare(String(b?.label ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+    if (labelCmp !== 0) return labelCmp;
+
+    return String(a?.code ?? '').localeCompare(String(b?.code ?? ''), 'tr', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
 }

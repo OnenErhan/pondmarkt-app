@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, AlertTriangle, Boxes, PackagePlus } from 'lucide-react';
 import {
   MATERIAL_CATEGORIES,
@@ -17,8 +17,35 @@ const CAT_COLOR = {
   packaging: 'bg-orange-50 text-orange-700 ring-orange-200',
 };
 
+const CATEGORY_LABEL_MAP = Object.fromEntries(MATERIAL_CATEGORIES.map((c) => [c.value, c.label]));
+
+const SORTABLE_COLUMNS = [
+  { key: 'code', label: 'Kod', align: 'left', getValue: (m) => m.code ?? '', type: 'text' },
+  { key: 'name', label: 'İsim', align: 'left', getValue: (m) => m.name ?? '', type: 'text' },
+  {
+    key: 'category',
+    label: 'Kategori',
+    align: 'left',
+    getValue: (m) => CATEGORY_LABEL_MAP[m.category] ?? m.category ?? '',
+    type: 'text',
+  },
+  { key: 'current_stock', label: 'Stok', align: 'right', getValue: (m) => m.current_stock, type: 'number' },
+  { key: 'min_stock', label: 'Min', align: 'right', getValue: (m) => m.min_stock, type: 'number' },
+  { key: 'unit', label: 'Birim', align: 'left', getValue: (m) => m.unit ?? '', type: 'text' },
+  {
+    key: 'supplier',
+    label: 'Tedarikçi',
+    align: 'left',
+    getValue: (m) => m.suppliers?.name ?? '',
+    type: 'text',
+  },
+  { key: 'last_price', label: 'Son Fiyat', align: 'right', getValue: (m) => m.last_price, type: 'number' },
+];
+
 export default function MaterialsPage() {
   const [tab, setTab] = useState('all');
+  const [sortKey, setSortKey] = useState('code');
+  const [sortDirection, setSortDirection] = useState('asc');
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -29,6 +56,21 @@ export default function MaterialsPage() {
   const { data: items = [], isLoading } = useMaterials(tab === 'all' ? null : tab);
   const del = useDeleteMaterial();
   const adjust = useAdjustMaterialStock();
+
+  const sortedItems = useMemo(() => {
+    const col = SORTABLE_COLUMNS.find((c) => c.key === sortKey) ?? SORTABLE_COLUMNS[0];
+    const dir = sortDirection === 'asc' ? 1 : -1;
+    return [...items].sort((a, b) => compareValues(col.getValue(a), col.getValue(b), col.type) * dir);
+  }, [items, sortDirection, sortKey]);
+
+  const onSort = (key) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection('asc');
+  };
 
   const openAdd = (m) => {
     setAdding(m);
@@ -111,19 +153,21 @@ export default function MaterialsPage() {
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-3">Kod</th>
-                <th className="px-4 py-3">İsim</th>
-                <th className="px-4 py-3">Kategori</th>
-                <th className="px-4 py-3 text-right">Stok</th>
-                <th className="px-4 py-3 text-right">Min</th>
-                <th className="px-4 py-3">Birim</th>
-                <th className="px-4 py-3">Tedarikçi</th>
-                <th className="px-4 py-3 text-right">Son Fiyat</th>
+                {SORTABLE_COLUMNS.map((col) => (
+                  <SortHeader
+                    key={col.key}
+                    label={col.label}
+                    align={col.align}
+                    isActive={sortKey === col.key}
+                    direction={sortDirection}
+                    onClick={() => onSort(col.key)}
+                  />
+                ))}
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {items.map((m) => {
+              {sortedItems.map((m) => {
                 const isLow = Number(m.current_stock) <= Number(m.min_stock);
                 return (
                   <tr key={m.id} className="text-sm hover:bg-slate-50">
@@ -284,6 +328,42 @@ export default function MaterialsPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+function compareValues(a, b, type) {
+  if (type === 'number') {
+    const left = toSortableNumber(a);
+    const right = toSortableNumber(b);
+    const leftMissing = Number.isNaN(left);
+    const rightMissing = Number.isNaN(right);
+    if (leftMissing && rightMissing) return 0;
+    if (leftMissing) return 1;
+    if (rightMissing) return -1;
+    return left - right;
+  }
+  return String(a ?? '').localeCompare(String(b ?? ''), 'tr', { sensitivity: 'base', numeric: true });
+}
+
+function toSortableNumber(value) {
+  if (value === null || value === undefined || value === '') return Number.NaN;
+  return Number(value);
+}
+
+function SortHeader({ label, align, isActive, direction, onClick }) {
+  return (
+    <th className={`px-4 py-3 ${align === 'right' ? 'text-right' : ''}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''} hover:text-slate-700`}
+      >
+        <span>{label}</span>
+        <span className={`text-[10px] ${isActive ? 'text-brand-600' : 'text-slate-300'}`}>
+          {isActive ? (direction === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </button>
+    </th>
   );
 }
 
