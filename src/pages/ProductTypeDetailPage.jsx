@@ -31,13 +31,13 @@ export default function ProductTypeDetailPage() {
   const { data, isLoading } = useProductTypeDetail(id);
   const [sizeForm, setSizeForm] = useState(null); // null | {} | size
   const [colorForm, setColorForm] = useState(null);
+  const sortedSizes = useMemo(() => sortSizes(data?.sizes ?? []), [data?.sizes]);
+  const sortedColors = useMemo(() => sortColors(data?.colors ?? []), [data?.colors]);
 
   if (isLoading) return <p className="p-6 text-sm text-slate-400">Yükleniyor...</p>;
   if (!data?.type) return <p className="p-6">Ürün bulunamadı</p>;
 
   const { type, sizes, colors, variants } = data;
-  const sortedSizes = useMemo(() => sortSizes(sizes), [sizes]);
-  const sortedColors = useMemo(() => sortColors(colors), [colors]);
 
   return (
     <div className="mx-auto max-w-6xl p-6">
