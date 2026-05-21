@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Printer, Tag } from 'lucide-react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Printer, Tag, Hash } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import bwipjs from 'bwip-js';
 import { supabase } from '../lib/supabase/client.js';
 import Barcode from '../components/Barcode.jsx';
 
+function buildSerial(sku, dateStr, seq) {
+  const datePart = dateStr.replace(/-/g, '');
+  return `${sku}-${datePart}-${String(seq).padStart(3, '0')}`;
+}
+
 export default function ProductLabelPage() {
   const { variantId } = useParams();
+  const [searchParams] = useSearchParams();
   const [variant, setVariant] = useState(null);
-  const [count, setCount] = useState(12);
+  const [count, setCount] = useState(() => Number(searchParams.get('qty')) || 12);
+  const [serialMode, setSerialMode] = useState(() => searchParams.get('serial') === 'true');
+  const [startSeq, setStartSeq] = useState(1);
+  const [serialDate, setSerialDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     let active = true;
@@ -71,9 +80,20 @@ export default function ProductLabelPage() {
         x + 3,
         y + 9,
       );
-      pdf.addImage(barcodeImg, 'PNG', x + 3, y + 11, labelW - 6, 12);
-      pdf.setFontSize(8);
-      pdf.text(variant.sku, x + labelW / 2, y + 27, { align: 'center' });
+
+      if (serialMode) {
+        pdf.addImage(barcodeImg, 'PNG', x + 3, y + 11, labelW - 6, 10);
+        pdf.setFontSize(7);
+        pdf.text(variant.sku, x + labelW / 2, y + 24, { align: 'center' });
+        pdf.setFontSize(6.5);
+        pdf.setTextColor(80, 80, 200);
+        pdf.text(buildSerial(variant.sku, serialDate, startSeq + i), x + labelW / 2, y + 28, { align: 'center' });
+        pdf.setTextColor(0, 0, 0);
+      } else {
+        pdf.addImage(barcodeImg, 'PNG', x + 3, y + 11, labelW - 6, 12);
+        pdf.setFontSize(8);
+        pdf.text(variant.sku, x + labelW / 2, y + 27, { align: 'center' });
+      }
     }
 
     pdf.save(`etiket-${variant.sku}-${count}.pdf`);
@@ -109,6 +129,11 @@ export default function ProductLabelPage() {
             </p>
             <Barcode value={variant.barcode} height={50} scale={2} displayValue={false} className="mt-2 w-full" />
             <p className="text-center text-xs font-mono mt-1">{variant.sku}</p>
+            {serialMode && (
+              <p className="text-center text-[11px] font-mono mt-0.5 text-indigo-600">
+                {buildSerial(variant.sku, serialDate, startSeq)}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -131,6 +156,59 @@ export default function ProductLabelPage() {
           <button type="button" className="btn-primary btn-lg" onClick={handlePrintPdf}>
             <Printer size={18} /> PDF İndir
           </button>
+        </div>
+
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <label className="flex cursor-pointer items-center gap-3">
+            <div className="relative">
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={serialMode}
+                onChange={(e) => setSerialMode(e.target.checked)}
+              />
+              <div
+                className={`h-5 w-9 rounded-full transition-colors ${serialMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
+              />
+              <div
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${serialMode ? 'translate-x-4' : 'translate-x-0.5'}`}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <Hash size={14} /> Benzersiz Seri Numarası
+            </div>
+          </label>
+          <p className="ml-12 mt-1 text-xs text-slate-400">
+            Her etikete ayrı seri kodu yazdırılır: <span className="font-mono">{variant.sku}-YYYYMMDD-001</span>
+          </p>
+
+          {serialMode && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Tarih</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={serialDate}
+                  onChange={(e) => setSerialDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">Başlangıç sırası</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={9999}
+                  className="input"
+                  value={startSeq}
+                  onChange={(e) => setStartSeq(Number(e.target.value) || 1)}
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Örnek: {buildSerial(variant.sku, serialDate, startSeq)} … {buildSerial(variant.sku, serialDate, startSeq + count - 1)}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

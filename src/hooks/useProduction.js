@@ -27,7 +27,7 @@ export function useProductionList({ from, to, variantId } = {}) {
       let q = supabase
         .from('production_entries')
         .select(
-          'id, date, qty, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price))',
+          'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price))',
         )
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })

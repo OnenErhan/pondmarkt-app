@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ClipboardList, XCircle, Plus, Filter } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ClipboardList, XCircle, Plus, Filter, Tag } from 'lucide-react';
 import { useProductionList, useVoidProduction } from '../hooks/useProduction.js';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -17,6 +17,7 @@ export default function ProductionListPage() {
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const { data: items = [], isLoading } = useProductionList({ from, to });
   const voidM = useVoidProduction();
+  const navigate = useNavigate();
   const [voiding, setVoiding] = useState(null);
   const [reason, setReason] = useState('');
 
@@ -129,13 +130,27 @@ export default function ProductionListPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {!e.voided && (
-                      <button
-                        type="button"
-                        onClick={() => setVoiding(e)}
-                        className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-100"
-                      >
-                        <XCircle size={13} /> İptal
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              `/products/${e.variant_id}/label?qty=${e.qty}&serial=true`,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"
+                          title="Seri numaralı etiket yazdır"
+                        >
+                          <Tag size={13} /> Etiket
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVoiding(e)}
+                          className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-100"
+                        >
+                          <XCircle size={13} /> İptal
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
