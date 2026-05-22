@@ -46,6 +46,9 @@ export default function ProductionListPage() {
           <Link to="/production/semi" className="btn-secondary">
             <Plus size={16} /> Yari Mamul
           </Link>
+          <Link to="/production/assemble" className="btn-secondary">
+            <Plus size={16} /> Birlestirme
+          </Link>
         </div>
       </header>
 

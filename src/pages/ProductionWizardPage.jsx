@@ -4,7 +4,6 @@ import { ArrowLeft, ArrowRight, Check, Factory, RotateCcw } from 'lucide-react';
 import { useProductTypes, useProductTypeDetail } from '../hooks/useProducts.js';
 import { useRecordProduction } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
-import { useSemiProductTypeIds } from '../hooks/useProducts.js';
 
 const STEPS = ['Tip', 'Beden', 'Renk', 'Adet'];
 
@@ -18,14 +17,9 @@ export default function ProductionWizardPage() {
   const [note, setNote] = useState('');
 
   const { data: types = [] } = useProductTypes();
-  const { data: semiTypeIds = [] } = useSemiProductTypeIds();
   const { data: detail } = useProductTypeDetail(type?.id);
   const record = useRecordProduction();
-  const sortedTypes = useMemo(() => {
-    const semiSet = new Set(semiTypeIds);
-    const fullCandidates = types.filter((t) => !semiSet.has(t.id));
-    return sortTypes(fullCandidates.length ? fullCandidates : types);
-  }, [types, semiTypeIds]);
+  const sortedTypes = useMemo(() => sortTypes(types), [types]);
   const sortedSizes = useMemo(() => sortSizes(detail?.sizes ?? []), [detail?.sizes]);
   const sortedColors = useMemo(() => sortColors(detail?.colors ?? []), [detail?.colors]);
 

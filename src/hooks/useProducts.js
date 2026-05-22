@@ -361,9 +361,72 @@ export function useSemiProductTypeIds() {
   return useQuery({
     queryKey: ['semi_product_type_ids'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('recipe_type_items').select('input_product_type_id');
+      const { data, error } = await supabase
+        .from('product_type_semi_components')
+        .select('product_type_id');
       if (error) throw error;
-      return Array.from(new Set((data ?? []).map((x) => x.input_product_type_id).filter(Boolean)));
+      return Array.from(new Set((data ?? []).map((x) => x.product_type_id).filter(Boolean)));
+    },
+  });
+}
+
+export function useProductTypeSemiComponents(productTypeId) {
+  return useQuery({
+    queryKey: ['product_type_semi_components', productTypeId],
+    enabled: !!productTypeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('product_type_semi_components')
+        .select('*')
+        .eq('product_type_id', productTypeId)
+        .order('sort_order')
+        .order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSaveProductTypeSemiComponents() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ productTypeId, items }) => {
+      const del = await supabase
+        .from('product_type_semi_components')
+        .delete()
+        .eq('product_type_id', productTypeId);
+      if (del.error) throw del.error;
+
+      if (items?.length) {
+        const rows = items.map((it, idx) => ({
+          product_type_id: productTypeId,
+          name: String(it.name ?? '').trim(),
+          required_qty: Number(it.required_qty ?? 1) || 1,
+          sort_order: idx + 1,
+        }));
+        const ins = await supabase.from('product_type_semi_components').insert(rows);
+        if (ins.error) throw ins.error;
+      }
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['product_type_semi_components', vars.productTypeId] });
+      qc.invalidateQueries({ queryKey: ['semi_product_type_ids'] });
+      qc.invalidateQueries({ queryKey: ['production'] });
+    },
+  });
+}
+
+export function useSemiComponentStocks(variantId) {
+  return useQuery({
+    queryKey: ['semi_component_stocks', variantId],
+    enabled: !!variantId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('semi_component_stocks')
+        .select('component_id, current_stock, product_type_semi_components(id,name,required_qty,sort_order)')
+        .eq('variant_id', variantId);
+      if (error) throw error;
+      return data ?? [];
     },
   });
 }

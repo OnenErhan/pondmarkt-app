@@ -1,18 +1,24 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Factory, RotateCcw } from 'lucide-react';
-import { useProductTypes, useProductTypeDetail } from '../hooks/useProducts.js';
+import {
+  useProductTypes,
+  useProductTypeDetail,
+  useProductTypeSemiComponents,
+  useSemiComponentStocks,
+} from '../hooks/useProducts.js';
 import { useRecordSemiProduction } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
 import { useSemiProductTypeIds } from '../hooks/useProducts.js';
 
-const STEPS = ['Tip', 'Beden', 'Renk', 'Adet'];
+const STEPS = ['Tip', 'Beden', 'Renk', 'Parca', 'Adet'];
 
 export default function SemiProductionPage() {
   const [step, setStep] = useState(0);
   const [type, setType] = useState(null);
   const [size, setSize] = useState(null);
   const [color, setColor] = useState(null);
+  const [component, setComponent] = useState(null);
   const [qty, setQty] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
@@ -20,6 +26,7 @@ export default function SemiProductionPage() {
   const { data: types = [] } = useProductTypes();
   const { data: semiTypeIds = [] } = useSemiProductTypeIds();
   const { data: detail } = useProductTypeDetail(type?.id);
+  const { data: components = [] } = useProductTypeSemiComponents(type?.id);
   const record = useRecordSemiProduction();
   const semiTypes = useMemo(() => {
     const idSet = new Set(semiTypeIds);
@@ -32,12 +39,19 @@ export default function SemiProductionPage() {
     if (!detail || !size || !color) return null;
     return detail.variants.find((v) => v.size_id === size.id && v.color_id === color.id);
   }, [detail, size, color]);
+  const { data: componentStocks = [] } = useSemiComponentStocks(variant?.id);
+  const selectedComponentStock = useMemo(() => {
+    if (!component) return 0;
+    const row = componentStocks.find((x) => x.component_id === component.id);
+    return Number(row?.current_stock ?? 0);
+  }, [componentStocks, component]);
 
   const reset = () => {
     setStep(0);
     setType(null);
     setSize(null);
     setColor(null);
+    setComponent(null);
     setQty('');
     setNote('');
   };
@@ -47,14 +61,18 @@ export default function SemiProductionPage() {
       toast.error('Bu kombinasyon icin varyant tanimli degil');
       return;
     }
+    if (!component) {
+      toast.error('Once parca secin');
+      return;
+    }
     const q = Number(String(qty).replace(',', '.'));
     if (!q || q <= 0) {
       toast.error('Gecerli bir adet girin');
       return;
     }
     try {
-      await record.mutateAsync({ variantId: variant.id, qty: q, date, note });
-      toast.success(`${q} adet yari mamul kaydedildi`);
+      await record.mutateAsync({ variantId: variant.id, componentId: component.id, qty: q, date, note });
+      toast.success(`${q} adet ${component.name} kaydedildi`);
       reset();
     } catch (e) {
       toast.error(e.message);
@@ -86,7 +104,7 @@ export default function SemiProductionPage() {
         .
       </div>
 
-      <div className="mb-6 grid grid-cols-4 gap-2">
+      <div className="mb-6 grid grid-cols-5 gap-2">
         {STEPS.map((label, i) => (
           <div
             key={label}
@@ -116,6 +134,7 @@ export default function SemiProductionPage() {
                     setType(t);
                     setSize(null);
                     setColor(null);
+                    setComponent(null);
                     setStep(1);
                   }}
                 >
@@ -142,6 +161,7 @@ export default function SemiProductionPage() {
                   active={size?.id === s.id}
                   onClick={() => {
                     setSize(s);
+                    setComponent(null);
                     setStep(2);
                   }}
                 >
@@ -177,6 +197,7 @@ export default function SemiProductionPage() {
                         return;
                       }
                       setColor(c);
+                      setComponent(null);
                       setStep(3);
                     }}
                   >
@@ -197,6 +218,33 @@ export default function SemiProductionPage() {
         )}
 
         {step === 3 && (
+          <Step title="Hangi parca uretildi?">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {components.map((p) => (
+                <BigCard
+                  key={p.id}
+                  active={component?.id === p.id}
+                  onClick={() => {
+                    setComponent(p);
+                    setStep(4);
+                  }}
+                >
+                  <div className="text-lg font-semibold text-slate-900">{p.name}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    1 urunde: {Number(p.required_qty).toLocaleString('tr-TR')} adet
+                  </div>
+                </BigCard>
+              ))}
+              {components.length === 0 && (
+                <p className="col-span-full text-sm text-slate-500">
+                  Bu urun turu icin parca tanimi yok. Urun detayinda "Yari Mamul Parcalari"ndan ekleyin.
+                </p>
+              )}
+            </div>
+          </Step>
+        )}
+
+        {step === 4 && (
           <Step title="Kac adet uretildi?">
             <div className="mx-auto max-w-md space-y-4">
               <div className="rounded-lg bg-slate-50 p-4 text-center">
@@ -204,12 +252,13 @@ export default function SemiProductionPage() {
                 <div className="mt-1 text-lg font-semibold">
                   {type?.name} - {size?.label} - {color?.label}
                 </div>
+                <div className="mt-1 text-sm font-medium text-amber-700">Parca: {component?.name}</div>
                 <div className="mt-1 font-mono text-xs text-slate-500">{variant?.sku}</div>
-                {variant && (
+                {variant && component && (
                   <div className="mt-2 text-xs text-slate-500">
-                    Mevcut stok:{' '}
+                    Mevcut parca stogu:{' '}
                     <span className="font-medium text-slate-800">
-                      {Number(variant.current_stock).toLocaleString('tr-TR')} adet
+                      {selectedComponentStock.toLocaleString('tr-TR')} adet
                     </span>
                   </div>
                 )}
@@ -278,12 +327,13 @@ export default function SemiProductionPage() {
         <button
           type="button"
           className="btn-secondary"
-          onClick={() => setStep(Math.min(3, step + 1))}
+          onClick={() => setStep(Math.min(4, step + 1))}
           disabled={
-            step === 3 ||
+            step === 4 ||
             (step === 0 && !type) ||
             (step === 1 && !size) ||
-            (step === 2 && !color)
+            (step === 2 && !color) ||
+            (step === 3 && !component)
           }
         >
           Ileri <ArrowRight size={16} />

@@ -34,6 +34,8 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_...
 6. `0006_seed_pond_products.sql` (ops.)
 7. `0007_semi_finished_flow.sql`
 8. `0008_semi_type_items.sql`
+9. `0010_component_based_semi_flow.sql`
+10. `0011_restore_core_production_rpc.sql` (0008 calistirdiysan mutlaka)
 
 ## Build & Deploy
 
@@ -52,4 +54,4 @@ Ayarlar → **Yedek İndir** ile tüm tablolar JSON olarak bilgisayara iner.
 
 ## Modüller
 
-- Dashboard · Tam Mamul Uretim Girisi · Yari Mamul Uretim Girisi · Uretim Gecmisi · Hammaddeler · Hammadde Alimi · Urunler · Recete · Depo · Depo Hareketleri · Raporlar · Ayarlar
+- Dashboard · Tam Mamul Uretim Girisi · Yari Mamul Uretim Girisi · Yari Mamul Birlestirme · Uretim Gecmisi · Hammaddeler · Hammadde Alimi · Urunler · Recete · Depo · Depo Hareketleri · Raporlar · Ayarlar

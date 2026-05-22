@@ -19,22 +19,21 @@ import {
   useDeleteColor,
   useCreateVariant,
   useDeleteVariant,
-  useRecipeTypeItems,
-  useSaveRecipeTypeItems,
+  useProductTypeSemiComponents,
+  useSaveProductTypeSemiComponents,
   buildSku,
 } from '../hooks/useProducts.js';
 import Modal from '../components/ui/Modal.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import { toast } from '../components/ui/Toast.jsx';
 import { useFieldArray, useForm } from 'react-hook-form';
-import { supabase } from '../lib/supabase/client.js';
 
 export default function ProductTypeDetailPage() {
   const { id } = useParams();
   const { data, isLoading } = useProductTypeDetail(id);
   const [sizeForm, setSizeForm] = useState(null); // null | {} | size
   const [colorForm, setColorForm] = useState(null);
-  const [semiModalVariant, setSemiModalVariant] = useState(null);
+  const [semiModalOpen, setSemiModalOpen] = useState(false);
   const sortedSizes = useMemo(() => sortSizes(data?.sizes ?? []), [data?.sizes]);
   const sortedColors = useMemo(() => sortColors(data?.colors ?? []), [data?.colors]);
 
@@ -138,9 +137,14 @@ export default function ProductTypeDetailPage() {
             <Sparkles size={16} className="text-slate-500" />
             Varyantlar
           </h2>
-          <p className="text-xs text-slate-500">
-            {variants.length} / {sortedSizes.length * sortedColors.length} olası varyant
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-500">
+              {variants.length} / {sortedSizes.length * sortedColors.length} olası varyant
+            </p>
+            <button type="button" className="btn-secondary text-xs" onClick={() => setSemiModalOpen(true)}>
+              <Plus size={12} /> Yari Mamul Parcalari
+            </button>
+          </div>
         </div>
         {sortedSizes.length === 0 || sortedColors.length === 0 ? (
           <EmptyState
@@ -153,7 +157,7 @@ export default function ProductTypeDetailPage() {
             sizes={sortedSizes}
             colors={sortedColors}
             variants={variants}
-            onManageSemi={(v) => setSemiModalVariant(v)}
+            onManageSemi={() => setSemiModalOpen(true)}
           />
         )}
       </section>
@@ -174,12 +178,8 @@ export default function ProductTypeDetailPage() {
           onClose={() => setColorForm(null)}
         />
       )}
-      {semiModalVariant && (
-        <SemiComponentModal
-          key={semiModalVariant.id}
-          variant={semiModalVariant}
-          onClose={() => setSemiModalVariant(null)}
-        />
+      {semiModalOpen && (
+        <SemiComponentModal type={type} onClose={() => setSemiModalOpen(false)} />
       )}
     </div>
   );
@@ -461,9 +461,9 @@ function VariantMatrix({ type, sizes, colors, variants, onManageSemi }) {
                         </Link>
                         <button
                           type="button"
-                          onClick={() => onManageSemi(v)}
+                          onClick={onManageSemi}
                           className="rounded bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
-                          title="Yari mamul bilesenleri"
+                          title="Yari mamul parcalari"
                         >
                           YM
                         </button>
@@ -518,55 +518,44 @@ function sortSizes(items = []) {
   });
 }
 
-function SemiComponentModal({ variant, onClose }) {
-  const { data, isLoading } = useRecipeTypeItems(variant.id);
-  const save = useSaveRecipeTypeItems();
-  const [productTypes, setProductTypes] = useState([]);
+function SemiComponentModal({ type, onClose }) {
+  const { data = [], isLoading } = useProductTypeSemiComponents(type.id);
+  const save = useSaveProductTypeSemiComponents();
   const { register, handleSubmit, control, reset } = useForm({
-    defaultValues: { yield_qty: 1, items: [] },
+    defaultValues: { items: [] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data: types, error } = await supabase
-        .from('product_types')
-        .select('id, code, name')
-        .order('name');
-      if (!active || error) return;
-      setProductTypes((types ?? []).filter((t) => t.id !== variant.product_type_id));
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!data) return;
     reset({
-      yield_qty: data.yieldQty ?? 1,
-      items: (data.items ?? []).map((it) => ({
-        input_product_type_id: it.input_product_type_id,
-        qty: it.qty,
-        wastage_pct: it.wastage_pct,
+      items: data.map((it) => ({
+        name: it.name,
+        required_qty: it.required_qty,
       })),
     });
   }, [data, reset]);
 
   const submit = async (values) => {
-    const items = (values.items ?? []).filter((it) => it.input_product_type_id && Number(it.qty) > 0);
-    if (items.some((it) => it.input_product_type_id === variant.product_type_id)) {
-      toast.error('Ayni urun turu kendisini yari mamul turu olarak kullanamaz');
-      return;
+    const items = (values.items ?? [])
+      .map((it) => ({
+        name: String(it.name ?? '').trim(),
+        required_qty: Number(it.required_qty ?? 1) || 1,
+      }))
+      .filter((it) => it.name.length > 0);
+
+    const names = new Set();
+    for (const item of items) {
+      const normalized = item.name.toLocaleLowerCase('tr-TR');
+      if (names.has(normalized)) {
+        toast.error('Ayni parca adi birden fazla kez eklenemez');
+        return;
+      }
+      names.add(normalized);
     }
+
     try {
-      await save.mutateAsync({
-        variantId: variant.id,
-        yieldQty: Number(values.yield_qty) || 1,
-        items,
-      });
-      toast.success('Yari mamul bilesenleri kaydedildi');
+      await save.mutateAsync({ productTypeId: type.id, items });
+      toast.success('Yari mamul parcalari kaydedildi. Tum varyantlara uygulanir.');
       onClose();
     } catch (e) {
       toast.error(e.message);
@@ -577,7 +566,7 @@ function SemiComponentModal({ variant, onClose }) {
     <Modal
       open
       onClose={onClose}
-      title={`Yari Mamul Bilesenleri - ${variant.sku}`}
+      title={`Yari Mamul Parcalari - ${type.code}`}
       size="lg"
       footer={
         <>
@@ -599,54 +588,47 @@ function SemiComponentModal({ variant, onClose }) {
         <p className="text-sm text-slate-400">Yukleniyor...</p>
       ) : (
         <form id="semiComponentForm" onSubmit={handleSubmit(submit)} className="space-y-3">
-          <div>
-            <label className="label">1 recete kac adet uretir?</label>
-            <input type="number" step="0.001" className="input" {...register('yield_qty')} />
-          </div>
+          <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
+            Burada tanimlanan parcalar bu urun turunun tum varyantlari icin gecerlidir.
+          </p>
 
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-800">Bagli yari mamuller</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Parca listesi</h3>
             <button
               type="button"
               className="btn-secondary text-xs"
-              onClick={() => append({ input_product_type_id: '', qty: '', wastage_pct: 0 })}
+              onClick={() => append({ name: '', required_qty: 1 })}
             >
-              <Plus size={14} /> Ekle
+              <Plus size={14} /> Parca Ekle
             </button>
           </div>
 
           {fields.length === 0 ? (
             <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-500">
-              Bu varyantta yari mamul bileseni yok.
+              Bu urun turunde yari mamul parcasi tanimli degil.
             </p>
           ) : (
             <div className="space-y-2">
               {fields.map((f, idx) => (
                 <div key={f.id} className="grid grid-cols-12 items-end gap-2 rounded bg-slate-50 p-3">
-                  <div className="col-span-7">
-                    <label className="label">Bilesen urun turu</label>
-                    <select className="input" {...register(`items.${idx}.input_product_type_id`)} required>
-                      <option value="">- Sec -</option>
-                      {productTypes.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.code} - {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="label">Miktar</label>
+                  <div className="col-span-8">
+                    <label className="label">Parca adi</label>
                     <input
-                      type="number"
-                      step="0.001"
+                      type="text"
                       className="input"
-                      required
-                      {...register(`items.${idx}.qty`)}
+                      placeholder="Orn: Kapak, Kasnak"
+                      {...register(`items.${idx}.name`)}
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="label">Fire %</label>
-                    <input type="number" step="0.01" className="input" {...register(`items.${idx}.wastage_pct`)} />
+                  <div className="col-span-3">
+                    <label className="label">1 urunde gerekli adet</label>
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      className="input"
+                      {...register(`items.${idx}.required_qty`)}
+                    />
                   </div>
                   <div className="col-span-1">
                     <button type="button" className="btn-secondary !p-2" onClick={() => remove(idx)}>
@@ -656,12 +638,6 @@ function SemiComponentModal({ variant, onClose }) {
                 </div>
               ))}
             </div>
-          )}
-
-          {productTypes.length === 0 && (
-            <p className="text-xs text-amber-700">
-              Secenek listesi bos. Once bu urunden farkli bir urun turu olusturmalisin.
-            </p>
           )}
         </form>
       )}

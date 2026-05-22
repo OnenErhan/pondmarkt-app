@@ -66,8 +66,29 @@ export function useRecordProduction() {
 export function useRecordSemiProduction() {
   const qc = useQueryClient();
   return useMutation({
+    mutationFn: async ({ variantId, componentId, qty, date, note }) => {
+      const { data, error } = await supabase.rpc('record_semi_component_production', {
+        p_variant_id: variantId,
+        p_component_id: componentId,
+        p_qty: qty,
+        p_date: date ?? null,
+        p_note: note ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['warehouse'] });
+    },
+  });
+}
+
+export function useRecordSemiAssembly() {
+  const qc = useQueryClient();
+  return useMutation({
     mutationFn: async ({ variantId, qty, date, note }) => {
-      const { data, error } = await supabase.rpc('record_semi_production', {
+      const { data, error } = await supabase.rpc('record_semi_component_assembly', {
         p_variant_id: variantId,
         p_qty: qty,
         p_date: date ?? null,
