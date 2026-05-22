@@ -64,6 +64,33 @@ export function useProductionList({ from, to, variantId } = {}) {
   });
 }
 
+export function useSemiAssemblyList({ from, to, variantId } = {}) {
+  return useQuery({
+    queryKey: [...KEY, 'semi-assembly', { from, to, variantId }],
+    queryFn: async () => {
+      let q = supabase
+        .from('semi_component_assembly_entries')
+        .select(
+          'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), semi_component_assembly_consumed(qty, product_type_semi_components(name))',
+        )
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (from) q = q.gte('date', from);
+      if (to) q = q.lte('date', to);
+      if (variantId) q = q.eq('variant_id', variantId);
+      const { data, error } = await q;
+      if (!error) return data ?? [];
+
+      const tableMissing =
+        error.code === '42P01' ||
+        /semi_component_assembly_entries|semi_component_assembly_consumed/i.test(error.message ?? '');
+      if (tableMissing) return [];
+      throw error;
+    },
+  });
+}
+
 export function useRecordProduction() {
   const qc = useQueryClient();
   return useMutation({

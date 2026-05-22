@@ -22,6 +22,33 @@ export function useWarehouseStock(typeId) {
   });
 }
 
+export function useSemiComponentWarehouseStock(typeId) {
+  return useQuery({
+    queryKey: [...KEY, 'semi-components', typeId ?? 'all'],
+    queryFn: async () => {
+      const q = supabase
+        .from('semi_component_stocks')
+        .select(
+          'variant_id, component_id, current_stock, updated_at, product_variants(id, product_type_id, sku, product_types(id,name), product_sizes(label), product_colors(label,hex)), product_type_semi_components(id,name)',
+        )
+        .order('updated_at', { ascending: false })
+        .limit(1000);
+
+      const { data, error } = await q;
+      if (!error) {
+        if (!typeId) return data ?? [];
+        return (data ?? []).filter((row) => row.product_variants?.product_type_id === typeId);
+      }
+
+      const tableMissing =
+        error.code === '42P01' ||
+        /semi_component_stocks|product_type_semi_components/i.test(error.message ?? '');
+      if (tableMissing) return [];
+      throw error;
+    },
+  });
+}
+
 export function useWarehouseMoves({ from, to, variantId, type, source } = {}) {
   return useQuery({
     queryKey: [...KEY, 'moves', { from, to, variantId, type, source }],

@@ -7,7 +7,7 @@ import {
   useSemiComponentStocks,
   useSemiProductTypeIds,
 } from '../hooks/useProducts.js';
-import { useRecordSemiAssembly } from '../hooks/useProduction.js';
+import { useRecordSemiAssembly, useSemiAssemblyList } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
 
 const STEPS = ['Tip', 'Beden', 'Renk', 'Adet'];
@@ -26,6 +26,7 @@ export default function SemiAssemblyPage() {
   const { data: detail } = useProductTypeDetail(type?.id);
   const { data: components = [] } = useProductTypeSemiComponents(type?.id);
   const assemble = useRecordSemiAssembly();
+  const { data: recentAssembly = [] } = useSemiAssemblyList();
 
   const assemblyTypes = useMemo(() => {
     const set = new Set(componentTypeIds);
@@ -255,6 +256,38 @@ export default function SemiAssemblyPage() {
           Ileri
         </button>
       </div>
+
+      <section className="mt-8">
+        <h2 className="mb-2 text-lg font-semibold text-slate-900">Son Birlestirme Kayitlari</h2>
+        {recentAssembly.length === 0 ? (
+          <p className="text-sm text-slate-400">Henuz birlestirme kaydi yok.</p>
+        ) : (
+          <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+            <table className="min-w-full divide-y divide-slate-100">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3">Tarih</th>
+                  <th className="px-4 py-3">Urun</th>
+                  <th className="px-4 py-3">SKU</th>
+                  <th className="px-4 py-3 text-right">Adet</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {recentAssembly.slice(0, 20).map((e) => (
+                  <tr key={e.id} className="text-sm hover:bg-slate-50">
+                    <td className="px-4 py-3">{new Date(e.date).toLocaleDateString('tr-TR')}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {e.product_variants?.product_types?.name} · {e.product_variants?.product_colors?.label} · {e.product_variants?.product_sizes?.label}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">{e.product_variants?.sku}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{Number(e.qty).toLocaleString('tr-TR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

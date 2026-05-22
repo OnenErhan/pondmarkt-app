@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ClipboardList, XCircle, Plus, Filter, Tag } from 'lucide-react';
-import { useProductionList, useVoidProduction } from '../hooks/useProduction.js';
+import { useProductionList, useSemiAssemblyList, useVoidProduction } from '../hooks/useProduction.js';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import { toast } from '../components/ui/Toast.jsx';
@@ -16,6 +16,7 @@ export default function ProductionListPage() {
   const [from, setFrom] = useState(todayMinusDays(30));
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const { data: items = [], isLoading } = useProductionList({ from, to });
+  const { data: assemblyItems = [], isLoading: isAssemblyLoading } = useSemiAssemblyList({ from, to });
   const voidM = useVoidProduction();
   const navigate = useNavigate();
   const [voiding, setVoiding] = useState(null);
@@ -180,6 +181,70 @@ export default function ProductionListPage() {
           </table>
         </div>
       )}
+
+      <section className="mt-6">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Yari Mamul Birlestirme Gecmisi</h2>
+          <span className="text-xs text-slate-500">{assemblyItems.length} kayit</span>
+        </div>
+
+        {isAssemblyLoading ? (
+          <p className="text-sm text-slate-400">Yukleniyor...</p>
+        ) : assemblyItems.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="Bu aralikta birlestirme yok"
+            message="Yari Mamul Birlestirme ekranindan yeni kayit ekleyin"
+          />
+        ) : (
+          <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+            <table className="min-w-full divide-y divide-slate-100">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3">Tarih</th>
+                  <th className="px-4 py-3">Urun</th>
+                  <th className="px-4 py-3">SKU</th>
+                  <th className="px-4 py-3 text-right">Adet</th>
+                  <th className="px-4 py-3">Tuketilen Parcalar</th>
+                  <th className="px-4 py-3">Not</th>
+                  <th className="px-4 py-3">Durum</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {assemblyItems.map((e) => (
+                  <tr key={e.id} className={`text-sm ${e.voided ? 'bg-red-50/40 text-slate-400 line-through' : 'hover:bg-slate-50'}`}>
+                    <td className="px-4 py-3">{new Date(e.date).toLocaleDateString('tr-TR')}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {e.product_variants?.product_types?.name} · {e.product_variants?.product_colors?.label} · {e.product_variants?.product_sizes?.label}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">{e.product_variants?.sku}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{Number(e.qty).toLocaleString('tr-TR')}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      {(e.semi_component_assembly_consumed ?? []).length === 0
+                        ? '—'
+                        : e.semi_component_assembly_consumed
+                            .map((c) => `${c.product_type_semi_components?.name ?? 'Parca'}: ${Number(c.qty).toLocaleString('tr-TR')}`)
+                            .join(' · ')}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{e.operator_note ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {e.voided ? (
+                        <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
+                          Iptal: {e.void_reason ?? '—'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200">
+                          Aktif
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <Modal
         open={!!voiding}
