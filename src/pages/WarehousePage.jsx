@@ -4,6 +4,7 @@ import { Warehouse, ArrowDownToLine, ArrowUpFromLine, Search, Tag } from 'lucide
 import { useSemiComponentWarehouseStock, useWarehouseStock } from '../hooks/useWarehouse.js';
 import { useProductTypes } from '../hooks/useProducts.js';
 import StockMoveModal from '../components/StockMoveModal.jsx';
+import SemiStockMoveModal from '../components/SemiStockMoveModal.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 
 export default function WarehousePage() {
@@ -17,6 +18,8 @@ export default function WarehousePage() {
   );
   const [moveTarget, setMoveTarget] = useState(null);
   const [moveType, setMoveType] = useState('out');
+  const [semiMoveTarget, setSemiMoveTarget] = useState(null);
+  const [semiMoveType, setSemiMoveType] = useState('out');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -47,6 +50,11 @@ export default function WarehousePage() {
   const openMove = (variant, type) => {
     setMoveTarget(variant);
     setMoveType(type);
+  };
+
+  const openSemiMove = (row, type) => {
+    setSemiMoveTarget(row);
+    setSemiMoveType(type);
   };
 
   return (
@@ -192,10 +200,13 @@ export default function WarehousePage() {
                 <th className="px-4 py-3">SKU</th>
                 <th className="px-4 py-3 text-right">Stok</th>
                 <th className="px-4 py-3 text-right">Guncellendi</th>
+                <th className="px-4 py-3 text-right">Islem</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredSemi.map((row) => (
+              {filteredSemi.map((row) => {
+                const empty = Number(row.current_stock || 0) <= 0;
+                return (
                 <tr key={`${row.variant_id}-${row.component_id}`} className="text-sm hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{row.product_variants?.product_types?.name}</td>
                   <td className="px-4 py-3">
@@ -211,8 +222,30 @@ export default function WarehousePage() {
                   <td className="px-4 py-3 text-right text-xs text-slate-500">
                     {row.updated_at ? new Date(row.updated_at).toLocaleString('tr-TR') : '—'}
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openSemiMove(row, 'in')}
+                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                        title="Stok girisi"
+                      >
+                        <ArrowDownToLine size={13} /> Giris
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openSemiMove(row, 'out')}
+                        disabled={empty}
+                        className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-100 disabled:opacity-40"
+                        title="Stok cikisi"
+                      >
+                        <ArrowUpFromLine size={13} /> Cikis
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           )}
@@ -224,6 +257,12 @@ export default function WarehousePage() {
         onClose={() => setMoveTarget(null)}
         variant={moveTarget}
         type={moveType}
+      />
+      <SemiStockMoveModal
+        open={!!semiMoveTarget}
+        onClose={() => setSemiMoveTarget(null)}
+        row={semiMoveTarget}
+        type={semiMoveType}
       />
     </div>
   );

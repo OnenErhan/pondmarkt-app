@@ -104,6 +104,24 @@ export function useRecordWarehouseMove() {
   });
 }
 
+export function useRecordSemiComponentMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ variantId, componentId, type, qty, note }) => {
+      const { data, error } = await supabase.rpc('record_semi_component_manual_move', {
+        p_variant_id: variantId,
+        p_component_id: componentId,
+        p_type: type,
+        p_qty: qty,
+        p_note: note ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
 export function useMaterialMoves({ from, to, materialId, type } = {}) {
   return useQuery({
     queryKey: ['material_moves', { from, to, materialId, type }],
