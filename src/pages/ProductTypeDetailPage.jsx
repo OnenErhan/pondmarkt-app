@@ -520,7 +520,7 @@ function SemiComponentModal({ type, onClose }) {
   useEffect(() => {
     reset({
       items: data.map((it) => ({
-        id: it.id,
+        component_id: it.id,
         name: it.name,
         required_qty: it.required_qty,
       })),
@@ -530,7 +530,7 @@ function SemiComponentModal({ type, onClose }) {
   const submit = async (values) => {
     const items = (values.items ?? [])
       .map((it) => ({
-        id: it.id || null,
+        component_id: it.component_id || null,
         name: String(it.name ?? '').trim(),
         required_qty: Number(it.required_qty ?? 1) || 1,
       }))
@@ -604,7 +604,7 @@ function SemiComponentModal({ type, onClose }) {
             <div className="space-y-2">
               {fields.map((f, idx) => (
                 <div key={f.id} className="grid grid-cols-12 items-end gap-2 rounded bg-slate-50 p-3">
-                  <input type="hidden" {...register(`items.${idx}.id`)} />
+                  <input type="hidden" {...register(`items.${idx}.component_id`)} />
                   <div className="col-span-8">
                     <label className="label">Parca adi</label>
                     <input

@@ -412,7 +412,7 @@ export function useSaveProductTypeSemiComponents() {
         const requiredQty = Number(raw?.required_qty ?? 1) || 1;
         const sortOrder = idx + 1;
 
-        let targetId = raw?.id || null;
+        let targetId = raw?.component_id || raw?.id || null;
 
         if (!targetId) {
           const byName = existingByName.get(name.toLocaleLowerCase('tr-TR'));
