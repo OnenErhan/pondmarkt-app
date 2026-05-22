@@ -54,7 +54,19 @@ export function useDeleteMaterial() {
   return useMutation({
     mutationFn: async (id) => {
       const { error } = await supabase.from('materials').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        const msg = String(error.message ?? '');
+        const recipeBlocked = /recipe_items_material_id_fkey/i.test(msg);
+        const moveBlocked = /material_stock_moves_material_id_fkey|production_consumed_material_id_fkey/i.test(msg);
+
+        if (recipeBlocked) {
+          throw new Error('Bu hammadde recetelerde kullaniliyor. Once recetelerden kaldirip tekrar deneyin.');
+        }
+        if (moveBlocked) {
+          throw new Error('Bu hammaddenin stok/uretim gecmisi var. Gecmis kayitlar nedeniyle silinemez.');
+        }
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });

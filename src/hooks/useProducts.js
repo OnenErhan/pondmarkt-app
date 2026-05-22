@@ -391,21 +391,71 @@ export function useSaveProductTypeSemiComponents() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ productTypeId, items }) => {
-      const del = await supabase
+      const existingRes = await supabase
         .from('product_type_semi_components')
-        .delete()
+        .select('id, name')
         .eq('product_type_id', productTypeId);
-      if (del.error) throw del.error;
+      if (existingRes.error) throw existingRes.error;
 
-      if (items?.length) {
-        const rows = items.map((it, idx) => ({
-          product_type_id: productTypeId,
-          name: String(it.name ?? '').trim(),
-          required_qty: Number(it.required_qty ?? 1) || 1,
-          sort_order: idx + 1,
-        }));
-        const ins = await supabase.from('product_type_semi_components').insert(rows);
-        if (ins.error) throw ins.error;
+      const existing = existingRes.data ?? [];
+      const existingById = new Map(existing.map((row) => [row.id, row]));
+      const existingByName = new Map(
+        existing.map((row) => [String(row.name ?? '').trim().toLocaleLowerCase('tr-TR'), row]),
+      );
+      const keepIds = new Set();
+      const usedFallbackIds = new Set();
+
+      for (let idx = 0; idx < (items?.length ?? 0); idx += 1) {
+        const raw = items[idx];
+        const name = String(raw?.name ?? '').trim();
+        if (!name) continue;
+        const requiredQty = Number(raw?.required_qty ?? 1) || 1;
+        const sortOrder = idx + 1;
+
+        let targetId = raw?.id || null;
+
+        if (!targetId) {
+          const byName = existingByName.get(name.toLocaleLowerCase('tr-TR'));
+          if (byName && !usedFallbackIds.has(byName.id)) {
+            targetId = byName.id;
+            usedFallbackIds.add(byName.id);
+          }
+        }
+
+        if (targetId && existingById.has(targetId)) {
+          const upd = await supabase
+            .from('product_type_semi_components')
+            .update({ name, required_qty: requiredQty, sort_order: sortOrder })
+            .eq('id', targetId);
+          if (upd.error) throw upd.error;
+          keepIds.add(targetId);
+        } else {
+          const ins = await supabase.from('product_type_semi_components').insert({
+            product_type_id: productTypeId,
+            name,
+            required_qty: requiredQty,
+            sort_order: sortOrder,
+          });
+          if (ins.error) throw ins.error;
+        }
+      }
+
+      const removable = existing.filter((row) => !keepIds.has(row.id));
+      for (const row of removable) {
+        const del = await supabase.from('product_type_semi_components').delete().eq('id', row.id);
+        if (!del.error) continue;
+
+        const fkBlocked =
+          del.error.code === '23503' ||
+          /semi_component_stock_moves_component_id_fkey|semi_component_stocks_component_id_fkey|semi_component_assembly_consumed_component_id_fkey/i.test(
+            del.error.message ?? '',
+          );
+        if (fkBlocked) {
+          throw new Error(
+            `"${row.name}" parcasi gecmis kayitlarda kullanildigi icin silinemez. Ismi duzenleyebilir veya parcayi oldugu gibi birakabilirsiniz.`,
+          );
+        }
+        throw del.error;
       }
     },
     onSuccess: (_d, vars) => {
