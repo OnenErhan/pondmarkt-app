@@ -37,6 +37,7 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_...
 9. `0010_component_based_semi_flow.sql`
 10. `0011_restore_core_production_rpc.sql` (0008 calistirdiysan mutlaka)
 11. `0012_semi_component_manual_moves.sql`
+12. `0013_semi_assembly_consumes_materials.sql`
 
 ## Build & Deploy
 
