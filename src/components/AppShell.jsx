@@ -22,7 +22,8 @@ import { useAuthStore } from '../store/authStore.js';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/production/new', label: 'Üretim Girişi', icon: Factory },
+  { to: '/production/new', label: 'Tam Mamul Uretim', icon: Factory },
+  { to: '/production/semi', label: 'Yari Mamul Uretim', icon: Factory },
   { to: '/production', label: 'Üretim Geçmişi', icon: ClipboardList },
   { to: '/materials', label: 'Hammaddeler', icon: Boxes },
   { to: '/materials/intake', label: 'Hammadde Alımı', icon: PackagePlus },

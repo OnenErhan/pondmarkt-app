@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Factory, RotateCcw } from 'lucide-react';
 import { useProductTypes, useProductTypeDetail } from '../hooks/useProducts.js';
-import { useRecordProduction } from '../hooks/useProduction.js';
+import { useRecordSemiProduction } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
-import { isFinishedCategory } from '../lib/productCategory.js';
+import { isSemiFinishedCategory } from '../lib/productCategory.js';
 
 const STEPS = ['Tip', 'Beden', 'Renk', 'Adet'];
 
-export default function ProductionWizardPage() {
+export default function SemiProductionPage() {
   const [step, setStep] = useState(0);
   const [type, setType] = useState(null);
   const [size, setSize] = useState(null);
@@ -19,9 +19,9 @@ export default function ProductionWizardPage() {
 
   const { data: types = [] } = useProductTypes();
   const { data: detail } = useProductTypeDetail(type?.id);
-  const record = useRecordProduction();
-  const sortedTypes = useMemo(
-    () => sortTypes(types.filter((t) => isFinishedCategory(t.category))),
+  const record = useRecordSemiProduction();
+  const semiTypes = useMemo(
+    () => sortTypes(types.filter((t) => isSemiFinishedCategory(t.category))),
     [types],
   );
   const sortedSizes = useMemo(() => sortSizes(detail?.sizes ?? []), [detail?.sizes]);
@@ -29,9 +29,7 @@ export default function ProductionWizardPage() {
 
   const variant = useMemo(() => {
     if (!detail || !size || !color) return null;
-    return detail.variants.find(
-      (v) => v.size_id === size.id && v.color_id === color.id,
-    );
+    return detail.variants.find((v) => v.size_id === size.id && v.color_id === color.id);
   }, [detail, size, color]);
 
   const reset = () => {
@@ -45,17 +43,17 @@ export default function ProductionWizardPage() {
 
   const submit = async () => {
     if (!variant) {
-      toast.error('Bu kombinasyon için varyant tanımlı değil');
+      toast.error('Bu kombinasyon icin varyant tanimli degil');
       return;
     }
     const q = Number(String(qty).replace(',', '.'));
     if (!q || q <= 0) {
-      toast.error('Geçerli bir adet girin');
+      toast.error('Gecerli bir adet girin');
       return;
     }
     try {
       await record.mutateAsync({ variantId: variant.id, qty: q, date, note });
-      toast.success(`${q} adet ${type.name} üretildi`);
+      toast.success(`${q} adet yari mamul kaydedildi`);
       reset();
     } catch (e) {
       toast.error(e.message);
@@ -65,30 +63,35 @@ export default function ProductionWizardPage() {
   return (
     <div className="mx-auto max-w-5xl p-4 sm:p-6">
       <header className="mb-6 flex items-center gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
           <Factory size={20} />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Tam Mamul Uretim Girisi</h1>
-          <p className="text-xs text-slate-500 sm:text-sm">Yari mamuller recete uzerinden bu adimda dusulur</p>
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Yari Mamul Uretim Girisi</h1>
+          <p className="text-xs text-slate-500 sm:text-sm">
+            Yari mamul stok girisi yapar, hammadde dusmez
+          </p>
         </div>
         <button type="button" onClick={reset} className="btn-secondary text-xs">
-          <RotateCcw size={14} /> Sıfırla
+          <RotateCcw size={14} /> Sifirla
         </button>
       </header>
 
-      <div className="mb-4 rounded-lg bg-brand-50 px-4 py-3 text-xs text-brand-700 ring-1 ring-brand-200">
-        Yari mamul stok girisi icin <Link to="/production/semi" className="font-semibold underline">ayri ekran</Link> kullan.
+      <div className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800 ring-1 ring-amber-200">
+        Tam mamul uretiminde receteye ekli yari mamuller otomatik dusulur. Tam mamul girisi icin{' '}
+        <Link to="/production/new" className="font-semibold underline">
+          burayi kullan
+        </Link>
+        .
       </div>
 
-      {/* Stepper */}
       <div className="mb-6 grid grid-cols-4 gap-2">
         {STEPS.map((label, i) => (
           <div
             key={label}
             className={`rounded-lg p-3 text-center text-xs font-semibold ring-1 ${
               i === step
-                ? 'bg-brand-600 text-white ring-brand-600'
+                ? 'bg-amber-600 text-white ring-amber-600'
                 : i < step
                   ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
                   : 'bg-white text-slate-400 ring-slate-200'
@@ -102,9 +105,9 @@ export default function ProductionWizardPage() {
 
       <div className="card min-h-[420px]">
         {step === 0 && (
-          <Step title="Hangi ürün tipi üretildi?">
+          <Step title="Hangi yari mamul tipi uretildi?">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {sortedTypes.map((t) => (
+              {semiTypes.map((t) => (
                 <BigCard
                   key={t.id}
                   active={type?.id === t.id}
@@ -119,12 +122,10 @@ export default function ProductionWizardPage() {
                   <div className="mt-1 text-lg font-semibold text-slate-900">{t.name}</div>
                 </BigCard>
               ))}
-              {sortedTypes.length === 0 && (
-                <p className="col-span-full text-sm text-slate-400">
-                  Henüz ürün tipi yok.{' '}
-                  <Link to="/products" className="text-brand-600 hover:underline">
-                    Ürünler sayfasına git
-                  </Link>
+              {semiTypes.length === 0 && (
+                <p className="col-span-full text-sm text-slate-500">
+                  Yari mamul kategorisinde urun tipi yok. Urunler sayfasinda kategoriye "YARI MAMUL"
+                  yazarak urun turu olusturabilirsin.
                 </p>
               )}
             </div>
@@ -144,7 +145,9 @@ export default function ProductionWizardPage() {
                   }}
                 >
                   <div className="text-[10px] font-mono text-slate-400 break-all">{s.code}</div>
-                  <div className="mt-1 text-base font-bold text-slate-900 break-words sm:text-xl md:text-2xl">{s.label}</div>
+                  <div className="mt-1 text-base font-bold text-slate-900 break-words sm:text-xl md:text-2xl">
+                    {s.label}
+                  </div>
                   {s.value && (
                     <div className="text-xs text-slate-500">
                       {s.value} {s.unit ?? ''}
@@ -152,9 +155,6 @@ export default function ProductionWizardPage() {
                   )}
                 </BigCard>
               ))}
-              {detail && sortedSizes.length === 0 && (
-                <p className="col-span-full text-sm text-slate-400">Bu tipe beden tanımlı değil</p>
-              )}
             </div>
           </Step>
         )}
@@ -163,9 +163,7 @@ export default function ProductionWizardPage() {
           <Step title={`${type?.name} ${size?.label} - hangi renk?`}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {sortedColors.map((c) => {
-                const v = detail?.variants.find(
-                  (x) => x.size_id === size.id && x.color_id === c.id,
-                );
+                const v = detail?.variants.find((x) => x.size_id === size.id && x.color_id === c.id);
                 const exists = !!v;
                 return (
                   <BigCard
@@ -174,7 +172,7 @@ export default function ProductionWizardPage() {
                     disabled={!exists}
                     onClick={() => {
                       if (!exists) {
-                        toast.error('Bu kombinasyon için varyant yok. Önce ürünler sayfasından oluşturun.');
+                        toast.error('Bu kombinasyon icin varyant yok. Once urunler sayfasindan olusturun.');
                         return;
                       }
                       setColor(c);
@@ -193,25 +191,22 @@ export default function ProductionWizardPage() {
                   </BigCard>
                 );
               })}
-              {detail && sortedColors.length === 0 && (
-                <p className="col-span-full text-sm text-slate-400">Bu tipe renk tanımlı değil</p>
-              )}
             </div>
           </Step>
         )}
 
         {step === 3 && (
-          <Step title="Kaç adet üretildi?">
+          <Step title="Kac adet uretildi?">
             <div className="mx-auto max-w-md space-y-4">
               <div className="rounded-lg bg-slate-50 p-4 text-center">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Üretilecek</div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Yari Mamul</div>
                 <div className="mt-1 text-lg font-semibold">
-                  {type?.name} · {size?.label} · {color?.label}
+                  {type?.name} - {size?.label} - {color?.label}
                 </div>
                 <div className="mt-1 font-mono text-xs text-slate-500">{variant?.sku}</div>
                 {variant && (
                   <div className="mt-2 text-xs text-slate-500">
-                    Mevcut depo:{' '}
+                    Mevcut stok:{' '}
                     <span className="font-medium text-slate-800">
                       {Number(variant.current_stock).toLocaleString('tr-TR')} adet
                     </span>
@@ -263,14 +258,13 @@ export default function ProductionWizardPage() {
                 disabled={record.isPending}
                 className="btn-primary btn-lg w-full"
               >
-                {record.isPending ? 'Kaydediliyor...' : 'Üretimi Kaydet'}
+                {record.isPending ? 'Kaydediliyor...' : 'Yari Mamul Uretimini Kaydet'}
               </button>
             </div>
           </Step>
         )}
       </div>
 
-      {/* Bottom nav */}
       <div className="mt-4 flex justify-between">
         <button
           type="button"
@@ -291,7 +285,7 @@ export default function ProductionWizardPage() {
             (step === 2 && !color)
           }
         >
-          İleri <ArrowRight size={16} />
+          Ileri <ArrowRight size={16} />
         </button>
       </div>
     </div>

@@ -10,8 +10,10 @@ const TABLES = [
   'product_variants',
   'recipes',
   'recipe_items',
+  'recipe_variant_items',
   'production_entries',
   'production_consumed',
+  'production_consumed_variants',
   'material_stock_moves',
   'product_stock_moves',
 ];

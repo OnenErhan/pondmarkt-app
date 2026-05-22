@@ -212,6 +212,8 @@ function TypeForm({ initial, onClose, save }) {
               placeholder="POND KAPAKLAR"
             />
             <datalist id="category-options">
+              <option value="YARI MAMUL" />
+              <option value="TAM MAMUL" />
               <option value="POND KAPAKLAR" />
               <option value="POND MERDİVENLER" />
               <option value="POND AYAK YIKAMA" />

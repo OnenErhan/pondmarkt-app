@@ -39,9 +39,14 @@ export default function ProductionListPage() {
           <h1 className="text-2xl font-bold text-slate-900">Üretim Geçmişi</h1>
           <p className="text-sm text-slate-500">Yapılan üretimler ve iptal işlemleri</p>
         </div>
-        <Link to="/production/new" className="btn-primary">
-          <Plus size={16} /> Yeni Üretim
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/production/new" className="btn-primary">
+            <Plus size={16} /> Tam Mamul
+          </Link>
+          <Link to="/production/semi" className="btn-secondary">
+            <Plus size={16} /> Yari Mamul
+          </Link>
+        </div>
       </header>
 
       <div className="card mb-4 flex flex-wrap items-end gap-3">
@@ -73,6 +78,7 @@ export default function ProductionListPage() {
                 <th className="px-4 py-3">Tarih</th>
                 <th className="px-4 py-3">Ürün</th>
                 <th className="px-4 py-3">SKU</th>
+                <th className="px-4 py-3">Tip</th>
                 <th className="px-4 py-3 text-right">Adet</th>
                 <th className="px-4 py-3">Not</th>
                 <th className="px-4 py-3">Durum</th>
@@ -99,6 +105,17 @@ export default function ProductionListPage() {
                     {e.product_variants?.product_types?.name} · {e.product_variants?.product_colors?.label} · {e.product_variants?.product_sizes?.label}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{e.product_variants?.sku}</td>
+                  <td className="px-4 py-3">
+                    {e.entry_kind === 'semi' ? (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                        Yari Mamul
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-200">
+                        Tam Mamul
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right font-semibold">
                     {Number(e.qty).toLocaleString('tr-TR')}
                   </td>

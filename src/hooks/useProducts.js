@@ -170,7 +170,14 @@ export function useRecipe(variantId) {
         .select('*, materials(id,code,name,category,unit)')
         .eq('recipe_id', r.data.id);
       if (items.error) throw items.error;
-      return { recipe: r.data, items: items.data };
+      const variantItems = await supabase
+        .from('recipe_variant_items')
+        .select(
+          'recipe_id, input_variant_id, qty, wastage_pct, product_variants(id, sku, product_types(name, category), product_sizes(label), product_colors(label))',
+        )
+        .eq('recipe_id', r.data.id);
+      if (variantItems.error) throw variantItems.error;
+      return { recipe: r.data, items: items.data, variantItems: variantItems.data };
     },
   });
 }
@@ -178,7 +185,7 @@ export function useRecipe(variantId) {
 export function useSaveRecipe() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ variantId, yieldQty, items }) => {
+    mutationFn: async ({ variantId, yieldQty, items, variantItems }) => {
       // upsert recipe
       let recipeId;
       const existing = await supabase
@@ -201,6 +208,11 @@ export function useSaveRecipe() {
         // wipe items
         const del = await supabase.from('recipe_items').delete().eq('recipe_id', recipeId);
         if (del.error) throw del.error;
+        const delVariantItems = await supabase
+          .from('recipe_variant_items')
+          .delete()
+          .eq('recipe_id', recipeId);
+        if (delVariantItems.error) throw delVariantItems.error;
       } else {
         const ins = await supabase
           .from('recipes')
@@ -220,6 +232,17 @@ export function useSaveRecipe() {
         }));
         const { error } = await supabase.from('recipe_items').insert(rows);
         if (error) throw error;
+      }
+
+      if (variantItems?.length) {
+        const variantRows = variantItems.map((it) => ({
+          recipe_id: recipeId,
+          input_variant_id: it.input_variant_id,
+          qty: Number(it.qty),
+          wastage_pct: Number(it.wastage_pct ?? 0),
+        }));
+        const insVariants = await supabase.from('recipe_variant_items').insert(variantRows);
+        if (insVariants.error) throw insVariants.error;
       }
       return recipeId;
     },

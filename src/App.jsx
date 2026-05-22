@@ -15,6 +15,7 @@ const RecipeEditorPage = lazy(() => import('./pages/RecipeEditorPage.jsx'));
 const ProductLabelPage = lazy(() => import('./pages/ProductLabelPage.jsx'));
 const SuppliersPage = lazy(() => import('./pages/SuppliersPage.jsx'));
 const ProductionWizardPage = lazy(() => import('./pages/ProductionWizardPage.jsx'));
+const SemiProductionPage = lazy(() => import('./pages/SemiProductionPage.jsx'));
 const ProductionListPage = lazy(() => import('./pages/ProductionListPage.jsx'));
 const MaterialIntakePage = lazy(() => import('./pages/MaterialIntakePage.jsx'));
 const WarehousePage = lazy(() => import('./pages/WarehousePage.jsx'));
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="products/recipes/:variantId" element={<RecipeEditorPage />} />
           <Route path="products/:variantId/label" element={<ProductLabelPage />} />
           <Route path="production/new" element={<ProductionWizardPage />} />
+          <Route path="production/semi" element={<SemiProductionPage />} />
           <Route path="production" element={<ProductionListPage />} />
           <Route path="warehouse" element={<WarehousePage />} />
           <Route path="warehouse/moves" element={<WarehouseMovesPage />} />

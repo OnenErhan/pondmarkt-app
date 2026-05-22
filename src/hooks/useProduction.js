@@ -27,7 +27,7 @@ export function useProductionList({ from, to, variantId } = {}) {
       let q = supabase
         .from('production_entries')
         .select(
-          'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price))',
+          'id, date, qty, variant_id, entry_kind, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price)), production_consumed_variants(qty, product_variants(sku))',
         )
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
@@ -58,6 +58,26 @@ export function useRecordProduction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ['materials'] });
+      qc.invalidateQueries({ queryKey: ['warehouse'] });
+    },
+  });
+}
+
+export function useRecordSemiProduction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ variantId, qty, date, note }) => {
+      const { data, error } = await supabase.rpc('record_semi_production', {
+        p_variant_id: variantId,
+        p_qty: qty,
+        p_date: date ?? null,
+        p_note: note ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ['warehouse'] });
     },
   });

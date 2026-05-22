@@ -25,8 +25,14 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_...
 
 ## Migration
 
-`supabase/migrations/` altındaki dosyaları sırayla Supabase Dashboard → SQL Editor'da çalıştır:
-1. `0001_init.sql` 2. `0002_rls.sql` 3. `0003_rpc.sql` 4. `0004_seed.sql` (ops.)
+`supabase/migrations/` altındaki dosyaları sırayla Supabase Dashboard -> SQL Editor'da calistir:
+1. `0001_init.sql`
+2. `0002_rls.sql`
+3. `0003_rpc.sql`
+4. `0004_seed.sql` (ops.)
+5. `0005_product_category.sql`
+6. `0006_seed_pond_products.sql` (ops.)
+7. `0007_semi_finished_flow.sql`
 
 ## Build & Deploy
 
@@ -45,4 +51,4 @@ Ayarlar → **Yedek İndir** ile tüm tablolar JSON olarak bilgisayara iner.
 
 ## Modüller
 
-- Dashboard · Üretim Girişi (sihirbaz) · Üretim Geçmişi · Hammaddeler · Hammadde Alımı · Ürünler · Reçete · Depo · Depo Hareketleri · Raporlar · Ayarlar
+- Dashboard · Tam Mamul Uretim Girisi · Yari Mamul Uretim Girisi · Uretim Gecmisi · Hammaddeler · Hammadde Alimi · Urunler · Recete · Depo · Depo Hareketleri · Raporlar · Ayarlar
