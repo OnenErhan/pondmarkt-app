@@ -179,7 +179,7 @@ export function useRecipe(variantId) {
       if (variantItems.error) throw variantItems.error;
       const typeItems = await supabase
         .from('recipe_type_items')
-        .select('recipe_id, input_product_type_id, qty, wastage_pct, product_types(id, code, name, category)')
+        .select('recipe_id, input_product_type_id, qty, wastage_pct, product_types(id, code, name)')
         .eq('recipe_id', r.data.id);
       if (typeItems.error) throw typeItems.error;
       return {
@@ -353,6 +353,17 @@ export function useSaveRecipeTypeItems() {
       qc.invalidateQueries({ queryKey: ['recipe', vars.variantId] });
       qc.invalidateQueries({ queryKey: ['product_types'] });
       qc.invalidateQueries({ queryKey: ['production'] });
+    },
+  });
+}
+
+export function useSemiProductTypeIds() {
+  return useQuery({
+    queryKey: ['semi_product_type_ids'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('recipe_type_items').select('input_product_type_id');
+      if (error) throw error;
+      return Array.from(new Set((data ?? []).map((x) => x.input_product_type_id).filter(Boolean)));
     },
   });
 }

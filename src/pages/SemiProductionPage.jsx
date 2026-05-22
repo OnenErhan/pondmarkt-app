@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Factory, RotateCcw } from 'lucide-react';
 import { useProductTypes, useProductTypeDetail } from '../hooks/useProducts.js';
 import { useRecordSemiProduction } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
-import { isSemiFinishedCategory } from '../lib/productCategory.js';
+import { useSemiProductTypeIds } from '../hooks/useProducts.js';
 
 const STEPS = ['Tip', 'Beden', 'Renk', 'Adet'];
 
@@ -18,12 +18,13 @@ export default function SemiProductionPage() {
   const [note, setNote] = useState('');
 
   const { data: types = [] } = useProductTypes();
+  const { data: semiTypeIds = [] } = useSemiProductTypeIds();
   const { data: detail } = useProductTypeDetail(type?.id);
   const record = useRecordSemiProduction();
-  const semiTypes = useMemo(
-    () => sortTypes(types.filter((t) => isSemiFinishedCategory(t.category))),
-    [types],
-  );
+  const semiTypes = useMemo(() => {
+    const idSet = new Set(semiTypeIds);
+    return sortTypes(types.filter((t) => idSet.has(t.id)));
+  }, [types, semiTypeIds]);
   const sortedSizes = useMemo(() => sortSizes(detail?.sizes ?? []), [detail?.sizes]);
   const sortedColors = useMemo(() => sortColors(detail?.colors ?? []), [detail?.colors]);
 
@@ -124,8 +125,8 @@ export default function SemiProductionPage() {
               ))}
               {semiTypes.length === 0 && (
                 <p className="col-span-full text-sm text-slate-500">
-                  Yari mamul kategorisinde urun tipi yok. Urunler sayfasinda kategoriye "YARI MAMUL"
-                  yazarak urun turu olusturabilirsin.
+                  Bu ekrandaki turler, urun detayinda YM penceresinden baglanan bilesen turlerinden gelir.
+                  Once bir tam mamul varyantinda YM baglantisi yap.
                 </p>
               )}
             </div>
