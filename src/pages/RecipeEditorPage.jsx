@@ -7,27 +7,19 @@ import { useMaterials, MATERIAL_CATEGORIES } from '../hooks/useMaterials.js';
 import { useRecipe, useSaveRecipe } from '../hooks/useProducts.js';
 import { toast } from '../components/ui/Toast.jsx';
 import Modal from '../components/ui/Modal.jsx';
-import { isSemiFinishedCategory } from '../lib/productCategory.js';
 
 export default function RecipeEditorPage() {
   const { variantId } = useParams();
   const navigate = useNavigate();
   const [variant, setVariant] = useState(null);
-  const [semiVariants, setSemiVariants] = useState([]);
   const { data: materials = [] } = useMaterials();
   const { data: recipeData, isLoading } = useRecipe(variantId);
   const save = useSaveRecipe();
 
   const { register, handleSubmit, control, reset, getValues } = useForm({
-    defaultValues: { yield_qty: 1, items: [], variant_items: [] },
+    defaultValues: { yield_qty: 1, items: [] },
   });
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'items' });
-  const {
-    fields: variantFields,
-    append: appendVariant,
-    remove: removeVariant,
-    replace: replaceVariant,
-  } = useFieldArray({ control, name: 'variant_items' });
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [pasteMode, setPasteMode] = useState('append'); // 'append' | 'replace'
@@ -58,46 +50,17 @@ export default function RecipeEditorPage() {
           qty: it.qty,
           wastage_pct: it.wastage_pct,
         })),
-        variant_items: (recipeData.variantItems ?? []).map((it) => ({
-          input_variant_id: it.input_variant_id,
-          qty: it.qty,
-          wastage_pct: it.wastage_pct,
-        })),
       });
     }
   }, [recipeData, reset]);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data, error } = await supabase
-        .from('product_variants')
-        .select('id, sku, product_types(name, category), product_sizes(label), product_colors(label)')
-        .order('sku');
-      if (!active || error) return;
-      setSemiVariants((data ?? []).filter((v) => isSemiFinishedCategory(v.product_types?.category)));
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const onSubmit = async (values) => {
     const items = values.items.filter((it) => it.material_id && Number(it.qty) > 0);
-    const variantItems = values.variant_items.filter(
-      (it) => it.input_variant_id && Number(it.qty) > 0,
-    );
-    const hasSelfReference = variantItems.some((it) => it.input_variant_id === variantId);
-    if (hasSelfReference) {
-      toast.error('Ayni varyant recetede yari mamul bileseni olamaz');
-      return;
-    }
     try {
       await save.mutateAsync({
         variantId,
         yieldQty: Number(values.yield_qty) || 1,
         items,
-        variantItems,
       });
       toast.success('Reçete kaydedildi');
       navigate(-1);
@@ -177,7 +140,6 @@ export default function RecipeEditorPage() {
     }
     if (pasteMode === 'replace') {
       replace(parsed);
-      replaceVariant([]);
     } else {
       parsed.forEach((p) => append(p));
     }
@@ -230,6 +192,9 @@ export default function RecipeEditorPage() {
             />
             <p className="mt-1 text-xs text-slate-500">
               Aşağıdaki kalemler bu adet için yazılacak. Üretimde adet/yield çarpanı uygulanır.
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              Yari mamul bilesen yonetimi urun detayinda varyant kartindaki YM butonundan yapilir.
             </p>
           </div>
         </div>
@@ -321,82 +286,6 @@ export default function RecipeEditorPage() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        <div className="card">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold">Yari Mamul Bilesenleri</h2>
-            <button
-              type="button"
-              className="btn-secondary text-xs"
-              onClick={() => appendVariant({ input_variant_id: '', qty: '', wastage_pct: 0 })}
-            >
-              <Plus size={14} /> Bilesen Ekle
-            </button>
-          </div>
-
-          {variantFields.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-400">
-              Bu recetede yari mamul bileseni yok (opsiyonel).
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {variantFields.map((f, idx) => (
-                <div key={f.id} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
-                  <div className="col-span-7">
-                    <label className="label">Yari Mamul Varyant</label>
-                    <select
-                      className="input"
-                      {...register(`variant_items.${idx}.input_variant_id`)}
-                      required
-                    >
-                      <option value="">- Sec -</option>
-                      {semiVariants.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.sku} - {v.product_types?.name} - {v.product_colors?.label} - {v.product_sizes?.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="label">Miktar</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      required
-                      className="input"
-                      {...register(`variant_items.${idx}.qty`)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="label">Fire %</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="input"
-                      {...register(`variant_items.${idx}.wastage_pct`)}
-                    />
-                  </div>
-                  <div className="col-span-1">
-                    <button
-                      type="button"
-                      onClick={() => removeVariant(idx)}
-                      className="btn-secondary !p-2"
-                      aria-label="Sil"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {semiVariants.length === 0 && (
-            <p className="mt-2 text-xs text-amber-700">
-              Yari mamul secenegi bos. Urun turlerinde kategoriye "YARI MAMUL" yazarak secilebilir hale getirebilirsin.
-            </p>
           )}
         </div>
 
