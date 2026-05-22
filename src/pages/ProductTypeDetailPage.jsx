@@ -157,7 +157,6 @@ export default function ProductTypeDetailPage() {
             sizes={sortedSizes}
             colors={sortedColors}
             variants={variants}
-            onManageSemi={() => setSemiModalOpen(true)}
           />
         )}
       </section>
@@ -369,7 +368,7 @@ function ColorForm({ initial, typeId, onClose }) {
   );
 }
 
-function VariantMatrix({ type, sizes, colors, variants, onManageSemi }) {
+function VariantMatrix({ type, sizes, colors, variants }) {
   const create = useCreateVariant();
   const del = useDeleteVariant();
   const variantMap = new Map();
@@ -459,14 +458,6 @@ function VariantMatrix({ type, sizes, colors, variants, onManageSemi }) {
                         >
                           <ChefHat size={11} className="inline" /> Reçete
                         </Link>
-                        <button
-                          type="button"
-                          onClick={onManageSemi}
-                          className="rounded bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
-                          title="Yari mamul parcalari"
-                        >
-                          YM
-                        </button>
                         <Link
                           to={`/products/${v.id}/label`}
                           className="rounded bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-200"

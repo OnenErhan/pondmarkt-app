@@ -24,20 +24,42 @@ export function useProductionList({ from, to, variantId } = {}) {
   return useQuery({
     queryKey: [...KEY, { from, to, variantId }],
     queryFn: async () => {
-      let q = supabase
-        .from('production_entries')
-        .select(
-          'id, date, qty, variant_id, entry_kind, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price)), production_consumed_variants(qty, product_variants(sku))',
-        )
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (from) q = q.gte('date', from);
-      if (to) q = q.lte('date', to);
-      if (variantId) q = q.eq('variant_id', variantId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data;
+      const applyFilters = (query) => {
+        let q = query
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (from) q = q.gte('date', from);
+        if (to) q = q.lte('date', to);
+        if (variantId) q = q.eq('variant_id', variantId);
+        return q;
+      };
+
+      const latestQuery = applyFilters(
+        supabase
+          .from('production_entries')
+          .select(
+            'id, date, qty, variant_id, entry_kind, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price)), production_consumed_variants(qty, product_variants(sku))',
+          ),
+      );
+      const latest = await latestQuery;
+      if (!latest.error) return latest.data;
+
+      const legacyQuery = applyFilters(
+        supabase
+          .from('production_entries')
+          .select(
+            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), production_consumed(qty, materials(last_price))',
+          ),
+      );
+      const legacy = await legacyQuery;
+      if (legacy.error) throw latest.error;
+
+      return (legacy.data ?? []).map((row) => ({
+        ...row,
+        entry_kind: 'full',
+        production_consumed_variants: [],
+      }));
     },
   });
 }
