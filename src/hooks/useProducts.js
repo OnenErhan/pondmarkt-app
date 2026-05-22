@@ -177,7 +177,17 @@ export function useRecipe(variantId) {
         )
         .eq('recipe_id', r.data.id);
       if (variantItems.error) throw variantItems.error;
-      return { recipe: r.data, items: items.data, variantItems: variantItems.data };
+      const typeItems = await supabase
+        .from('recipe_type_items')
+        .select('recipe_id, input_product_type_id, qty, wastage_pct, product_types(id, code, name, category)')
+        .eq('recipe_id', r.data.id);
+      if (typeItems.error) throw typeItems.error;
+      return {
+        recipe: r.data,
+        items: items.data,
+        variantItems: variantItems.data,
+        typeItems: typeItems.data,
+      };
     },
   });
 }
@@ -254,9 +264,9 @@ export function useSaveRecipe() {
   });
 }
 
-export function useRecipeVariantItems(variantId) {
+export function useRecipeTypeItems(variantId) {
   return useQuery({
-    queryKey: ['recipe_variant_items', variantId],
+    queryKey: ['recipe_type_items', variantId],
     enabled: !!variantId,
     queryFn: async () => {
       const r = await supabase
@@ -268,12 +278,12 @@ export function useRecipeVariantItems(variantId) {
       if (!r.data) return { recipeId: null, yieldQty: 1, items: [] };
 
       const items = await supabase
-        .from('recipe_variant_items')
+        .from('recipe_type_items')
         .select(
-          'recipe_id, input_variant_id, qty, wastage_pct, product_variants(id, sku, product_types(name, category), product_sizes(label), product_colors(label))',
+          'recipe_id, input_product_type_id, qty, wastage_pct, product_types(id, code, name, category)',
         )
         .eq('recipe_id', r.data.id)
-        .order('input_variant_id');
+        .order('input_product_type_id');
       if (items.error) throw items.error;
 
       return {
@@ -286,7 +296,7 @@ export function useRecipeVariantItems(variantId) {
   });
 }
 
-export function useSaveRecipeVariantItems() {
+export function useSaveRecipeTypeItems() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ variantId, items, yieldQty }) => {
@@ -318,24 +328,28 @@ export function useSaveRecipeVariantItems() {
         if (upd.error) throw upd.error;
       }
 
-      const del = await supabase.from('recipe_variant_items').delete().eq('recipe_id', recipeId);
-      if (del.error) throw del.error;
+      const delTypes = await supabase.from('recipe_type_items').delete().eq('recipe_id', recipeId);
+      if (delTypes.error) throw delTypes.error;
+
+      // Eski modelle kaydedilen satirlarin cift tuketim yaratmamasi icin temizle.
+      const delLegacy = await supabase.from('recipe_variant_items').delete().eq('recipe_id', recipeId);
+      if (delLegacy.error) throw delLegacy.error;
 
       if (items?.length) {
         const rows = items.map((it) => ({
           recipe_id: recipeId,
-          input_variant_id: it.input_variant_id,
+          input_product_type_id: it.input_product_type_id,
           qty: Number(it.qty),
           wastage_pct: Number(it.wastage_pct ?? 0),
         }));
-        const insRows = await supabase.from('recipe_variant_items').insert(rows);
+        const insRows = await supabase.from('recipe_type_items').insert(rows);
         if (insRows.error) throw insRows.error;
       }
 
       return recipeId;
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['recipe_variant_items', vars.variantId] });
+      qc.invalidateQueries({ queryKey: ['recipe_type_items', vars.variantId] });
       qc.invalidateQueries({ queryKey: ['recipe', vars.variantId] });
       qc.invalidateQueries({ queryKey: ['product_types'] });
       qc.invalidateQueries({ queryKey: ['production'] });

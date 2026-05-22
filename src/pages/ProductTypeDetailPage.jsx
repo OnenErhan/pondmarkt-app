@@ -19,8 +19,8 @@ import {
   useDeleteColor,
   useCreateVariant,
   useDeleteVariant,
-  useRecipeVariantItems,
-  useSaveRecipeVariantItems,
+  useRecipeTypeItems,
+  useSaveRecipeTypeItems,
   buildSku,
 } from '../hooks/useProducts.js';
 import Modal from '../components/ui/Modal.jsx';
@@ -520,9 +520,9 @@ function sortSizes(items = []) {
 }
 
 function SemiComponentModal({ variant, onClose }) {
-  const { data, isLoading } = useRecipeVariantItems(variant.id);
-  const save = useSaveRecipeVariantItems();
-  const [semiVariants, setSemiVariants] = useState([]);
+  const { data, isLoading } = useRecipeTypeItems(variant.id);
+  const save = useSaveRecipeTypeItems();
+  const [semiTypes, setSemiTypes] = useState([]);
   const { register, handleSubmit, control, reset } = useForm({
     defaultValues: { yield_qty: 1, items: [] },
   });
@@ -531,13 +531,13 @@ function SemiComponentModal({ variant, onClose }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data: variants, error } = await supabase
-        .from('product_variants')
-        .select('id, sku, product_types(name, category), product_sizes(label), product_colors(label)')
-        .order('sku');
+      const { data: types, error } = await supabase
+        .from('product_types')
+        .select('id, code, name, category')
+        .order('name');
       if (!active || error) return;
-      const filtered = (variants ?? []).filter((v) => isSemiFinishedCategory(v.product_types?.category));
-      setSemiVariants(filtered);
+      const filtered = (types ?? []).filter((t) => isSemiFinishedCategory(t.category));
+      setSemiTypes(filtered);
     })();
     return () => {
       active = false;
@@ -549,7 +549,7 @@ function SemiComponentModal({ variant, onClose }) {
     reset({
       yield_qty: data.yieldQty ?? 1,
       items: (data.items ?? []).map((it) => ({
-        input_variant_id: it.input_variant_id,
+        input_product_type_id: it.input_product_type_id,
         qty: it.qty,
         wastage_pct: it.wastage_pct,
       })),
@@ -557,9 +557,9 @@ function SemiComponentModal({ variant, onClose }) {
   }, [data, reset]);
 
   const submit = async (values) => {
-    const items = (values.items ?? []).filter((it) => it.input_variant_id && Number(it.qty) > 0);
-    if (items.some((it) => it.input_variant_id === variant.id)) {
-      toast.error('Ayni varyant kendisini yari mamul olarak kullanamaz');
+    const items = (values.items ?? []).filter((it) => it.input_product_type_id && Number(it.qty) > 0);
+    if (items.some((it) => it.input_product_type_id === variant.product_type_id)) {
+      toast.error('Ayni urun turu kendisini yari mamul turu olarak kullanamaz');
       return;
     }
     try {
@@ -611,7 +611,7 @@ function SemiComponentModal({ variant, onClose }) {
             <button
               type="button"
               className="btn-secondary text-xs"
-              onClick={() => append({ input_variant_id: '', qty: '', wastage_pct: 0 })}
+              onClick={() => append({ input_product_type_id: '', qty: '', wastage_pct: 0 })}
             >
               <Plus size={14} /> Ekle
             </button>
@@ -626,12 +626,12 @@ function SemiComponentModal({ variant, onClose }) {
               {fields.map((f, idx) => (
                 <div key={f.id} className="grid grid-cols-12 items-end gap-2 rounded bg-slate-50 p-3">
                   <div className="col-span-7">
-                    <label className="label">Yari mamul varyant</label>
-                    <select className="input" {...register(`items.${idx}.input_variant_id`)} required>
+                    <label className="label">Yari mamul turu</label>
+                    <select className="input" {...register(`items.${idx}.input_product_type_id`)} required>
                       <option value="">- Sec -</option>
-                      {semiVariants.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.sku} - {v.product_types?.name} - {v.product_colors?.label} - {v.product_sizes?.label}
+                      {semiTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.code} - {t.name}
                         </option>
                       ))}
                     </select>
@@ -660,9 +660,9 @@ function SemiComponentModal({ variant, onClose }) {
             </div>
           )}
 
-          {semiVariants.length === 0 && (
+          {semiTypes.length === 0 && (
             <p className="text-xs text-amber-700">
-              Secenek listesi bos. Urun turu kategorilerinde YARI MAMUL tanimlanmis varyant olmali.
+              Secenek listesi bos. Urun turu kategorilerinde YARI MAMUL tanimli bir tur olmali.
             </p>
           )}
         </form>

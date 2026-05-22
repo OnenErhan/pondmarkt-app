@@ -10,6 +10,7 @@ const TABLES = [
   'product_variants',
   'recipes',
   'recipe_items',
+  'recipe_type_items',
   'recipe_variant_items',
   'production_entries',
   'production_consumed',

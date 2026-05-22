@@ -33,6 +33,7 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_...
 5. `0005_product_category.sql`
 6. `0006_seed_pond_products.sql` (ops.)
 7. `0007_semi_finished_flow.sql`
+8. `0008_semi_type_items.sql`
 
 ## Build & Deploy
 
