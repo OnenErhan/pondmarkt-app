@@ -68,25 +68,70 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
   return useQuery({
     queryKey: [...KEY, 'semi-assembly', { from, to, variantId }],
     queryFn: async () => {
-      let q = supabase
-        .from('semi_component_assembly_entries')
-        .select(
-          'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), semi_component_assembly_consumed(qty, product_type_semi_components(name))',
-        )
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (from) q = q.gte('date', from);
-      if (to) q = q.lte('date', to);
-      if (variantId) q = q.eq('variant_id', variantId);
-      const { data, error } = await q;
-      if (!error) return data ?? [];
+      const applyFilters = (query) => {
+        let q = query
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (from) q = q.gte('date', from);
+        if (to) q = q.lte('date', to);
+        if (variantId) q = q.eq('variant_id', variantId);
+        return q;
+      };
 
-      const tableMissing =
-        error.code === '42P01' ||
-        /semi_component_assembly_entries|semi_component_assembly_consumed/i.test(error.message ?? '');
-      if (tableMissing) return [];
-      throw error;
+      const isMissingRelationError = (err, relation) => {
+        if (!err) return false;
+        const text = [err.message, err.details, err.hint].filter(Boolean).join(' ');
+        return err.code === '42P01' || new RegExp(`relation\\s+['"]?${relation}['"]?\\s+does\\s+not\\s+exist`, 'i').test(text);
+      };
+
+      const richQuery = applyFilters(
+        supabase
+          .from('semi_component_assembly_entries')
+          .select(
+            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), semi_component_assembly_consumed(qty, product_type_semi_components(name))',
+          ),
+      );
+      const rich = await richQuery;
+      if (!rich.error) return rich.data ?? [];
+
+      if (isMissingRelationError(rich.error, 'semi_component_assembly_consumed')) {
+        const leanQuery = applyFilters(
+          supabase
+            .from('semi_component_assembly_entries')
+            .select(
+              'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label))',
+            ),
+        );
+        const lean = await leanQuery;
+        if (!lean.error) {
+          return (lean.data ?? []).map((row) => ({
+            ...row,
+            semi_component_assembly_consumed: [],
+          }));
+        }
+        if (!isMissingRelationError(lean.error, 'semi_component_assembly_entries')) {
+          throw lean.error;
+        }
+      } else if (!isMissingRelationError(rich.error, 'semi_component_assembly_entries')) {
+        throw rich.error;
+      }
+
+      // Legacy fallback for environments where component-based assembly tables are not migrated yet.
+      const legacyQuery = applyFilters(
+        supabase
+          .from('production_entries')
+          .select(
+            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, entry_kind, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label))',
+          )
+          .in('entry_kind', ['semi', 'assembly']),
+      );
+      const legacy = await legacyQuery;
+      if (legacy.error) throw legacy.error;
+      return (legacy.data ?? []).map((row) => ({
+        ...row,
+        semi_component_assembly_consumed: [],
+      }));
     },
   });
 }
