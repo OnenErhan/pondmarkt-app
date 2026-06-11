@@ -105,17 +105,41 @@ function useFullProductionReport(from, to) {
   return useQuery({
     queryKey: ['report', 'full-production', from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const [directResult, assemblyResult] = await Promise.all([
+        supabase
         .from('production_entries')
         .select(
-          'id, date, qty, operator_note, entry_kind, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
+          'id, date, qty, operator_note, entry_kind, voided, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
         )
         .or('entry_kind.eq.full,entry_kind.is.null')
+        .eq('voided', false)
         .gte('date', from)
         .lte('date', to)
-        .order('date');
-      if (error) throw error;
-      return data || [];
+        .order('date'),
+        supabase
+          .from('semi_component_assembly_entries')
+          .select(
+            'id, date, qty, operator_note, voided, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
+          )
+          .eq('voided', false)
+          .gte('date', from)
+          .lte('date', to)
+          .order('date'),
+      ]);
+
+      if (directResult.error) throw directResult.error;
+      if (assemblyResult.error) throw assemblyResult.error;
+
+      return [
+        ...(directResult.data ?? []).map((row) => ({
+          ...row,
+          source: 'Tam Mamul',
+        })),
+        ...(assemblyResult.data ?? []).map((row) => ({
+          ...row,
+          source: 'Yari Mamul Birlestirme',
+        })),
+      ].sort((a, b) => new Date(b.date) - new Date(a.date));
     },
   });
 }
@@ -132,14 +156,18 @@ function FullProductionReport({ from, to }) {
         type: r.product_variants?.product_types?.name ?? '',
         color: r.product_variants?.product_colors?.label ?? '',
         size: r.product_variants?.product_sizes?.label ?? '',
+        sources: new Set(),
         qty: 0,
         count: 0,
       };
       cur.qty += Number(r.qty);
       cur.count += 1;
+      if (r.source) cur.sources.add(r.source);
       map.set(key, cur);
     });
-    return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+    return Array.from(map.values())
+      .map((r) => ({ ...r, source: Array.from(r.sources).join(' + ') || 'Tam Mamul' }))
+      .sort((a, b) => b.qty - a.qty);
   }, [rows]);
 
   const total = grouped.reduce((s, r) => s + r.qty, 0);
@@ -174,6 +202,7 @@ function FullProductionReport({ from, to }) {
           Renk: r.product_variants?.product_colors?.label,
           Beden: r.product_variants?.product_sizes?.label,
           Adet: Number(r.qty),
+          Kaynak: r.source ?? 'Tam Mamul',
           Not: r.operator_note ?? '',
         })),
       ),
@@ -206,6 +235,7 @@ function FullProductionReport({ from, to }) {
             <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">Ürün</th>
+              <th className="px-4 py-3">Kaynak</th>
               <th className="px-4 py-3 text-right">Adet</th>
               <th className="px-4 py-3 text-right">Kayıt</th>
             </tr>
@@ -215,6 +245,7 @@ function FullProductionReport({ from, to }) {
               <tr key={r.sku} className="text-sm hover:bg-slate-50">
                 <td className="px-4 py-3 font-mono text-xs">{r.sku}</td>
                 <td className="px-4 py-3">{r.type} · {r.color} · {r.size}</td>
+                <td className="px-4 py-3 text-slate-600">{r.source ?? 'Tam Mamul'}</td>
                 <td className="px-4 py-3 text-right font-semibold">{fmt(r.qty)}</td>
                 <td className="px-4 py-3 text-right text-slate-500">{r.count}</td>
               </tr>
