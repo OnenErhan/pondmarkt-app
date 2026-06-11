@@ -129,10 +129,10 @@ export default function SemiAssemblyPage() {
         ))}
       </div>
 
-      <div className="card min-h-[420px]">
+      <div className="card">
         {step === 0 && (
           <Step title="Hangi urun birlestirilecek?">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {assemblyTypes.map((t) => (
                 <BigCard
                   key={t.id}
@@ -144,8 +144,8 @@ export default function SemiAssemblyPage() {
                     setStep(1);
                   }}
                 >
-                  <div className="text-xs font-mono text-slate-400">{t.code}</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">{t.name}</div>
+                  <div className="text-[10px] font-mono text-slate-400 leading-tight">{t.code}</div>
+                  <div className="mt-0.5 text-sm font-semibold text-slate-900 leading-snug">{t.name}</div>
                 </BigCard>
               ))}
               {assemblyTypes.length === 0 && (
@@ -336,7 +336,7 @@ function BigCard({ active, disabled, onClick, children }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-xl p-4 text-center transition ring-2 ${
+      className={`rounded-lg p-2.5 text-center transition ring-2 ${
         disabled
           ? 'cursor-not-allowed bg-slate-50 ring-slate-100 opacity-50'
           : active
