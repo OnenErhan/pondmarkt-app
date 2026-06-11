@@ -6,9 +6,11 @@ const KEY = ['production'];
 function logSemiAssemblyDebug(stage, detail) {
   if (typeof window === 'undefined') return;
   const debugEnabled = import.meta.env.DEV || window.localStorage?.getItem('debugSemiAssembly') === '1';
-  if (!debugEnabled) return;
+  const isError = /error/i.test(stage);
+  if (!debugEnabled && !isError) return;
   // Debug-only logs to inspect fallback behavior and raw Supabase errors in browser console.
-  console.debug(`[semi-assembly] ${stage}`, detail);
+  const logger = isError ? console.error : console.info;
+  logger(`[semi-assembly] ${stage}`, detail);
 }
 
 // All product variants for selection (with type/size/color labels)
@@ -76,6 +78,26 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
   return useQuery({
     queryKey: [...KEY, 'semi-assembly', { from, to, variantId }],
     queryFn: async () => {
+      const attachVariantDetails = async (rows) => {
+        const ids = Array.from(new Set((rows ?? []).map((r) => r.variant_id).filter(Boolean)));
+        if (ids.length === 0) return rows ?? [];
+
+        const { data: variants, error } = await supabase
+          .from('product_variants')
+          .select('id, sku, current_stock, product_types(name), product_sizes(label), product_colors(label)')
+          .in('id', ids);
+        if (error) {
+          logSemiAssemblyDebug('variant-attach-error', error);
+          throw error;
+        }
+
+        const byId = new Map((variants ?? []).map((v) => [v.id, v]));
+        return (rows ?? []).map((row) => ({
+          ...row,
+          product_variants: byId.get(row.variant_id) ?? null,
+        }));
+      };
+
       const applyFilters = (query) => {
         let q = query
           .order('date', { ascending: false })
@@ -97,13 +119,13 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
         supabase
           .from('semi_component_assembly_entries')
           .select(
-            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label)), semi_component_assembly_consumed(qty, product_type_semi_components(name))',
+            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, semi_component_assembly_consumed(qty, product_type_semi_components(name))',
           ),
       );
       const rich = await richQuery;
       if (!rich.error) {
         logSemiAssemblyDebug('rich-query-success', { rows: (rich.data ?? []).length, from, to, variantId });
-        return rich.data ?? [];
+        return attachVariantDetails(rich.data ?? []);
       }
 
       logSemiAssemblyDebug('rich-query-error', rich.error);
@@ -113,13 +135,14 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
           supabase
             .from('semi_component_assembly_entries')
             .select(
-              'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label))',
+              'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at',
             ),
         );
         const lean = await leanQuery;
         if (!lean.error) {
           logSemiAssemblyDebug('lean-query-success', { rows: (lean.data ?? []).length, from, to, variantId });
-          return (lean.data ?? []).map((row) => ({
+          const enriched = await attachVariantDetails(lean.data ?? []);
+          return enriched.map((row) => ({
             ...row,
             semi_component_assembly_consumed: [],
           }));
@@ -137,14 +160,15 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
         supabase
           .from('production_entries')
           .select(
-            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, entry_kind, product_variants(sku, current_stock, product_types(name), product_sizes(label), product_colors(label))',
+            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, entry_kind',
           )
           .in('entry_kind', ['semi', 'assembly']),
       );
       const legacy = await legacyQuery;
       if (legacy.error) throw legacy.error;
       logSemiAssemblyDebug('legacy-query-success', { rows: (legacy.data ?? []).length, from, to, variantId });
-      return (legacy.data ?? []).map((row) => ({
+      const enrichedLegacy = await attachVariantDetails(legacy.data ?? []);
+      return enrichedLegacy.map((row) => ({
         ...row,
         semi_component_assembly_consumed: [],
       }));
@@ -198,13 +222,18 @@ export function useRecordSemiAssembly() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ variantId, qty, date, note }) => {
+      logSemiAssemblyDebug('record-request', { variantId, qty, date, note });
       const { data, error } = await supabase.rpc('record_semi_component_assembly', {
         p_variant_id: variantId,
         p_qty: qty,
         p_date: date ?? null,
         p_note: note ?? null,
       });
-      if (error) throw error;
+      if (error) {
+        logSemiAssemblyDebug('record-error', error);
+        throw error;
+      }
+      logSemiAssemblyDebug('record-success', { entryId: data });
       return data;
     },
     onSuccess: () => {
