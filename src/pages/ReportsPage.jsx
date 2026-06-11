@@ -101,26 +101,37 @@ function formatVariantLabel(row) {
 }
 
 // --- Tam mamul report ---
+async function attachVariants(rows) {
+  const ids = Array.from(new Set((rows ?? []).map((r) => r.variant_id).filter(Boolean)));
+  if (ids.length === 0) return rows ?? [];
+  const { data: variants, error } = await supabase
+    .from('product_variants')
+    .select('id, sku, product_types(name), product_sizes(label), product_colors(label)')
+    .in('id', ids);
+  if (error) throw error;
+  const byId = new Map((variants ?? []).map((v) => [v.id, v]));
+  return (rows ?? []).map((row) => ({
+    ...row,
+    product_variants: byId.get(row.variant_id) ?? null,
+  }));
+}
+
 function useFullProductionReport(from, to) {
   return useQuery({
     queryKey: ['report', 'full-production', from, to],
     queryFn: async () => {
       const [directResult, assemblyResult] = await Promise.all([
         supabase
-        .from('production_entries')
-        .select(
-          'id, date, qty, operator_note, entry_kind, voided, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
-        )
-        .or('entry_kind.eq.full,entry_kind.is.null')
-        .eq('voided', false)
-        .gte('date', from)
-        .lte('date', to)
-        .order('date'),
+          .from('production_entries')
+          .select('id, date, qty, variant_id, operator_note, entry_kind, voided')
+          .or('entry_kind.eq.full,entry_kind.is.null')
+          .eq('voided', false)
+          .gte('date', from)
+          .lte('date', to)
+          .order('date'),
         supabase
           .from('semi_component_assembly_entries')
-          .select(
-            'id, date, qty, operator_note, voided, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
-          )
+          .select('id, date, qty, variant_id, operator_note, voided')
           .eq('voided', false)
           .gte('date', from)
           .lte('date', to)
@@ -130,16 +141,16 @@ function useFullProductionReport(from, to) {
       if (directResult.error) throw directResult.error;
       if (assemblyResult.error) throw assemblyResult.error;
 
-      return [
-        ...(directResult.data ?? []).map((row) => ({
-          ...row,
-          source: 'Tam Mamul',
-        })),
-        ...(assemblyResult.data ?? []).map((row) => ({
-          ...row,
-          source: 'Yari Mamul Birlestirme',
-        })),
-      ].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const directRows = (await attachVariants(directResult.data ?? [])).map((row) => ({
+        ...row,
+        source: 'Tam Mamul',
+      }));
+      const assemblyRows = (await attachVariants(assemblyResult.data ?? [])).map((row) => ({
+        ...row,
+        source: 'Yarı Mamul Birleştirme',
+      }));
+
+      return [...directRows, ...assemblyRows].sort((a, b) => new Date(b.date) - new Date(a.date));
     },
   });
 }
@@ -265,13 +276,13 @@ function useSemiProductionReport(from, to) {
       const { data, error } = await supabase
         .from('semi_component_production_entries')
         .select(
-          'id, date, qty, operator_note, product_variants(sku, product_types(name), product_sizes(label), product_colors(label)), product_type_semi_components(name)',
+          'id, date, qty, variant_id, operator_note, product_type_semi_components(name)',
         )
         .gte('date', from)
         .lte('date', to)
         .order('date');
       if (error) throw error;
-      return data || [];
+      return attachVariants(data ?? []);
     },
   });
 }
