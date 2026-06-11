@@ -1,6 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase/client.js';
 
+function isMissingTableError(error) {
+  return error?.code === '42P01';
+}
+
+function toUserFriendlyVariantDeleteError(error) {
+  const code = error?.code;
+  const msg = (error?.message ?? '').toLowerCase();
+
+  if (code === '23503' || msg.includes('violates foreign key constraint')) {
+    return new Error(
+      'Varyant silinemedi. Bu varyanta bagli hareket veya recete kayitlari var. Once bagli kayitlari temizleyip tekrar deneyin.',
+    );
+  }
+
+  if (code === '42501') {
+    return new Error('Varyant silmek icin yetkiniz yok.');
+  }
+
+  return new Error(error?.message || 'Varyant silinirken beklenmeyen bir hata olustu.');
+}
+
 export function buildSku(typeCode, colorCode, sizeCode) {
   return [typeCode, colorCode, sizeCode]
     .map((s) => (s ?? '').toString().trim().toUpperCase())
@@ -148,8 +169,28 @@ export function useDeleteVariant() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id }) => {
+      // Hard-delete flow: clear FK-dependent history rows first.
+      // Order matters: child rows that reference entries are removed before entries.
+      const deleteOps = [
+        { table: 'recipe_variant_items', column: 'input_variant_id' },
+        { table: 'production_consumed_variants', column: 'variant_id' },
+        { table: 'semi_component_assembly_consumed', column: 'variant_id' },
+        { table: 'semi_component_stock_moves', column: 'variant_id' },
+        { table: 'semi_component_production_entries', column: 'variant_id' },
+        { table: 'semi_component_assembly_entries', column: 'variant_id' },
+        { table: 'product_stock_moves', column: 'variant_id' },
+        { table: 'production_entries', column: 'variant_id' },
+      ];
+
+      for (const op of deleteOps) {
+        const { error } = await supabase.from(op.table).delete().eq(op.column, id);
+        if (error && !isMissingTableError(error)) {
+          throw toUserFriendlyVariantDeleteError(error);
+        }
+      }
+
       const { error } = await supabase.from('product_variants').delete().eq('id', id);
-      if (error) throw error;
+      if (error) throw toUserFriendlyVariantDeleteError(error);
     },
     onSuccess: (_d, vars) =>
       qc.invalidateQueries({ queryKey: ['product_types', vars.typeId, 'detail'] }),

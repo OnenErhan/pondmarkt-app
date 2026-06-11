@@ -391,7 +391,12 @@ function VariantMatrix({ type, sizes, colors, variants }) {
   };
 
   const handleDelete = async (variant) => {
-    if (!confirm(`${variant.sku} silinsin mi?`)) return;
+    if (
+      !confirm(
+        `${variant.sku} silinsin mi? Bu islem varyanta bagli hareket ve uretim gecmisini de silecektir.`,
+      )
+    )
+      return;
     try {
       await del.mutateAsync({ id: variant.id, typeId: type.id });
       toast.success('Silindi');
