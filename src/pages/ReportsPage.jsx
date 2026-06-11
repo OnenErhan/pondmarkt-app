@@ -22,7 +22,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('tr-TR');
 const fmtTl = (n) => `${Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ₺`;
 
 export default function ReportsPage() {
-  const [tab, setTab] = useState('production');
+  const [tab, setTab] = useState('fullProduction');
   const [from, setFrom] = useState(todayMinusDays(30));
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
 
@@ -220,7 +220,7 @@ function FullProductionReport({ from, to }) {
     <div className="space-y-4">
       <div className="card flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-wide text-slate-500">Toplam Tam Mamul</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Toplam Tam Mamul + Birleştirme</div>
           <div className="text-2xl font-bold text-slate-900">{fmt(total)} adet</div>
           <div className="text-xs text-slate-500">{rows.length} kayıt · {grouped.length} farklı varyant</div>
         </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ClipboardList, XCircle, Plus, Filter, Tag, RefreshCw } from 'lucide-react';
 import { useProductionList, useSemiAssemblyList, useVoidProduction } from '../hooks/useProduction.js';
@@ -28,6 +28,24 @@ export default function ProductionListPage() {
   const navigate = useNavigate();
   const [voiding, setVoiding] = useState(null);
   const [reason, setReason] = useState('');
+
+  const historyRows = useMemo(() => {
+    const fullRows = items.map((row) => ({
+      ...row,
+      history_kind: row.entry_kind === 'semi' ? 'Yarı Mamul' : 'Tam Mamul',
+    }));
+    const assemblyRows = assemblyItems.map((row) => ({
+      ...row,
+      entry_kind: 'assembly',
+      history_kind: 'Birleştirme',
+    }));
+
+    return [...fullRows, ...assemblyRows].sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+    });
+  }, [items, assemblyItems]);
 
   const confirmVoid = async () => {
     try {
@@ -70,12 +88,12 @@ export default function ProductionListPage() {
           <label className="label">Bitiş</label>
           <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <div className="ml-auto text-sm text-slate-500">{items.length} kayıt</div>
+        <div className="ml-auto text-sm text-slate-500">{historyRows.length} kayıt</div>
       </div>
 
       {isLoading ? (
         <p className="text-sm text-slate-400">Yükleniyor...</p>
-      ) : items.length === 0 ? (
+      ) : historyRows.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
           title="Bu aralıkta üretim yok"
@@ -90,6 +108,7 @@ export default function ProductionListPage() {
                 <th className="px-4 py-3">Ürün</th>
                 <th className="px-4 py-3">SKU</th>
                 <th className="px-4 py-3">Tip</th>
+                <th className="px-4 py-3">Kaynak</th>
                 <th className="px-4 py-3 text-right">Adet</th>
                 <th className="px-4 py-3">Not</th>
                 <th className="px-4 py-3">Durum</th>
@@ -98,11 +117,14 @@ export default function ProductionListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {items.map((e) => {
-                const cost = (e.production_consumed ?? []).reduce(
+              {historyRows.map((e) => {
+                const isAssembly = e.entry_kind === 'assembly';
+                const cost = isAssembly
+                  ? 0
+                  : (e.production_consumed ?? []).reduce(
                   (s, c) => s + Number(c.qty ?? 0) * Number(c.materials?.last_price ?? 0),
                   0,
-                );
+                  );
                 const unitCost = Number(e.qty) > 0 ? cost / Number(e.qty) : 0;
                 return (
                 <tr
@@ -121,12 +143,17 @@ export default function ProductionListPage() {
                       <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
                         Yari Mamul
                       </span>
+                    ) : isAssembly ? (
+                      <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200">
+                        Birleştirme
+                      </span>
                     ) : (
                       <span className="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-200">
                         Tam Mamul
                       </span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-slate-600">{e.history_kind ?? 'Tam Mamul'}</td>
                   <td className="px-4 py-3 text-right font-semibold">
                     {Number(e.qty).toLocaleString('tr-TR')}
                   </td>
@@ -143,7 +170,7 @@ export default function ProductionListPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {cost > 0 ? (
+                    {!isAssembly && cost > 0 ? (
                       <div className="leading-tight">
                         <div className="font-semibold text-slate-700">
                           ₺ {cost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -157,7 +184,7 @@ export default function ProductionListPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!e.voided && (
+                    {!e.voided && !isAssembly && (
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
