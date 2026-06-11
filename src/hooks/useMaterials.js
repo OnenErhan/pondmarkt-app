@@ -3,6 +3,48 @@ import { supabase } from '../lib/supabase/client.js';
 
 const KEY = ['materials'];
 
+function formatRecipeUsageLabel(variant) {
+  if (!variant) return null;
+  const sku = variant.sku ? String(variant.sku) : '';
+  const typeName = variant.product_types?.name ? String(variant.product_types.name) : '';
+  const size = variant.product_sizes?.label ? String(variant.product_sizes.label) : '';
+  const color = variant.product_colors?.label ? String(variant.product_colors.label) : '';
+
+  const detail = [typeName, size, color].filter(Boolean).join(' / ');
+  if (sku && detail) return `${sku} (${detail})`;
+  return sku || detail || null;
+}
+
+async function loadRecipeUsage(materialId) {
+  const itemsRes = await supabase
+    .from('recipe_items')
+    .select('recipe_id')
+    .eq('material_id', materialId)
+    .limit(6);
+  if (itemsRes.error) return [];
+
+  const recipeIds = [...new Set((itemsRes.data ?? []).map((row) => row.recipe_id).filter(Boolean))];
+  if (!recipeIds.length) return [];
+
+  const recipesRes = await supabase.from('recipes').select('id, variant_id').in('id', recipeIds);
+  if (recipesRes.error) return [];
+
+  const variantIds = [...new Set((recipesRes.data ?? []).map((row) => row.variant_id).filter(Boolean))];
+  if (!variantIds.length) return [];
+
+  const variantsRes = await supabase
+    .from('product_variants')
+    .select('id, sku, product_types(name), product_sizes(label), product_colors(label)')
+    .in('id', variantIds);
+  if (variantsRes.error) return [];
+
+  const variantById = new Map((variantsRes.data ?? []).map((variant) => [variant.id, variant]));
+  const labels = (recipesRes.data ?? [])
+    .map((recipe) => formatRecipeUsageLabel(variantById.get(recipe.variant_id)))
+    .filter(Boolean);
+  return [...new Set(labels)].slice(0, 5);
+}
+
 export const MATERIAL_CATEGORIES = [
   { value: 'chemical', label: 'Kimyasal', color: 'chemical' },
   { value: 'accessory', label: 'Aksesuar', color: 'accessory' },
@@ -52,7 +94,10 @@ export function useSaveMaterial() {
 export function useDeleteMaterial() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id) => {
+    mutationFn: async (input) => {
+      const id = typeof input === 'string' ? input : input?.id;
+      if (!id) throw new Error('Silinecek hammadde bulunamadi.');
+
       const { error } = await supabase.from('materials').delete().eq('id', id);
       if (error) {
         const msg = String(error.message ?? '');
@@ -60,6 +105,10 @@ export function useDeleteMaterial() {
         const moveBlocked = /material_stock_moves_material_id_fkey|production_consumed_material_id_fkey/i.test(msg);
 
         if (recipeBlocked) {
+          const usage = await loadRecipeUsage(id);
+          if (usage.length) {
+            throw new Error(`Bu hammadde recetelerde kullaniliyor: ${usage.join(', ')}. Once recetelerden kaldirip tekrar deneyin.`);
+          }
           throw new Error('Bu hammadde recetelerde kullaniliyor. Once recetelerden kaldirip tekrar deneyin.');
         }
         if (moveBlocked) {

@@ -87,7 +87,7 @@ export function useRecordWarehouseMove() {
       date,
       restoreMaterials,
     }) => {
-      const { data, error } = await supabase.rpc('record_warehouse_move', {
+      const params = {
         p_variant_id: variantId,
         p_type: type,
         p_qty: qty,
@@ -97,8 +97,27 @@ export function useRecordWarehouseMove() {
         p_unit_price: unitPrice ?? null,
         p_note: note ?? null,
         p_date: date ?? null,
-        p_restore_materials: restoreMaterials ?? false,
-      });
+      };
+
+      const wantsRestore = restoreMaterials === true;
+      const call = (extra = {}) => supabase.rpc('record_warehouse_move', { ...params, ...extra });
+
+      let { data, error } = wantsRestore
+        ? await call({ p_restore_materials: true })
+        : await call();
+
+      const missingNewSignature =
+        error &&
+        (error.code === 'PGRST202' || /Could not find the function .*record_warehouse_move/i.test(error.message ?? ''));
+
+      if (missingNewSignature && !wantsRestore) {
+        ({ data, error } = await call({}));
+      }
+
+      if (missingNewSignature && wantsRestore) {
+        throw new Error('Hammadde geri yukleme icin veritabani migrationi eksik. 0014 migrationini Supabase tarafinda uygulayin.');
+      }
+
       if (error) throw error;
       return data;
     },
