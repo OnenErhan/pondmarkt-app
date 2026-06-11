@@ -16,7 +16,7 @@ export default function RecipeEditorPage() {
   const { data: recipeData, isLoading } = useRecipe(variantId);
   const save = useSaveRecipe();
 
-  const { register, handleSubmit, control, reset, getValues } = useForm({
+  const { register, handleSubmit, control, reset, getValues, watch } = useForm({
     defaultValues: { yield_qty: 1, items: [] },
   });
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'items' });
@@ -79,6 +79,39 @@ export default function RecipeEditorPage() {
 
   // Map: KOD (uppercase) -> material
   const codeMap = new Map(materials.map((m) => [String(m.code).trim().toUpperCase(), m]));
+  const watchedItems = watch('items');
+
+  const materialById = new Map(materials.map((m) => [String(m.id), m]));
+  const rowsByCategory = new Map(MATERIAL_CATEGORIES.map((c) => [c.value, []]));
+  rowsByCategory.set('__uncategorized__', []);
+  rowsByCategory.set('__unselected__', []);
+
+  fields.forEach((f, idx) => {
+    const selectedId = watchedItems?.[idx]?.material_id ?? f.material_id;
+    if (!selectedId) {
+      rowsByCategory.get('__unselected__').push({ field: f, idx });
+      return;
+    }
+
+    const selectedMaterial = materialById.get(String(selectedId));
+    const category = selectedMaterial?.category;
+    if (!category || !rowsByCategory.has(category)) {
+      rowsByCategory.get('__uncategorized__').push({ field: f, idx });
+      return;
+    }
+
+    rowsByCategory.get(category).push({ field: f, idx });
+  });
+
+  const groupedRows = [
+    ...MATERIAL_CATEGORIES.map((c) => ({
+      key: c.value,
+      label: c.label,
+      rows: rowsByCategory.get(c.value) ?? [],
+    })),
+    { key: '__uncategorized__', label: 'Kategorisiz', rows: rowsByCategory.get('__uncategorized__') ?? [] },
+    { key: '__unselected__', label: 'Secilmemis', rows: rowsByCategory.get('__unselected__') ?? [] },
+  ].filter((section) => section.rows.length > 0);
 
   const handleCopy = async () => {
     const items = getValues('items') || [];
@@ -234,56 +267,65 @@ export default function RecipeEditorPage() {
               Henüz kalem yok. Yukarıdaki butondan ekleyin.
             </p>
           ) : (
-            <div className="space-y-2">
-              {fields.map((f, idx) => (
-                <div key={f.id} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
-                  <div className="col-span-6">
-                    <label className="label">Malzeme</label>
-                    <select className="input" {...register(`items.${idx}.material_id`)} required>
-                      <option value="">— Seç —</option>
-                      {grouped.map((g) =>
-                        g.materials.length ? (
-                          <optgroup key={g.value} label={g.label}>
-                            {g.materials.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.code} — {m.name} ({m.unit})
-                              </option>
-                            ))}
-                          </optgroup>
-                        ) : null,
-                      )}
-                    </select>
+            <div className="space-y-4">
+              {groupedRows.map((section) => (
+                <section key={section.key} className="space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                    <h3 className="text-sm font-semibold text-slate-700">{section.label}</h3>
+                    <span className="text-xs text-slate-500">{section.rows.length} kalem</span>
                   </div>
-                  <div className="col-span-3">
-                    <label className="label">Miktar</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      required
-                      className="input"
-                      {...register(`items.${idx}.qty`)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="label">Fire %</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="input"
-                      {...register(`items.${idx}.wastage_pct`)}
-                    />
-                  </div>
-                  <div className="col-span-1">
-                    <button
-                      type="button"
-                      onClick={() => remove(idx)}
-                      className="btn-secondary !p-2"
-                      aria-label="Sil"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
+
+                  {section.rows.map(({ field, idx }) => (
+                    <div key={field.id} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
+                      <div className="col-span-6">
+                        <label className="label">Malzeme</label>
+                        <select className="input" {...register(`items.${idx}.material_id`)} required>
+                          <option value="">— Seç —</option>
+                          {grouped.map((g) =>
+                            g.materials.length ? (
+                              <optgroup key={g.value} label={g.label}>
+                                {g.materials.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.code} — {m.name} ({m.unit})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ) : null,
+                          )}
+                        </select>
+                      </div>
+                      <div className="col-span-3">
+                        <label className="label">Miktar</label>
+                        <input
+                          type="number"
+                          step="0.001"
+                          required
+                          className="input"
+                          {...register(`items.${idx}.qty`)}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="label">Fire %</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="input"
+                          {...register(`items.${idx}.wastage_pct`)}
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <button
+                          type="button"
+                          onClick={() => remove(idx)}
+                          className="btn-secondary !p-2"
+                          aria-label="Sil"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </section>
               ))}
             </div>
           )}
