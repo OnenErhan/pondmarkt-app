@@ -25,10 +25,17 @@ export default function StockMoveModal({ open, onClose, variant, type = 'out' })
   const [orderNo, setOrderNo] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [note, setNote] = useState('');
+  const [restoreMaterials, setRestoreMaterials] = useState(false);
 
   const switchType = (t) => {
     setMoveType(t);
     setSource(SOURCES[t][0].value);
+    setRestoreMaterials(false);
+  };
+
+  const changeSource = (nextSource) => {
+    setSource(nextSource);
+    setRestoreMaterials(moveType === 'out' && nextSource === 'manual');
   };
 
   const submit = async () => {
@@ -51,6 +58,7 @@ export default function StockMoveModal({ open, onClose, variant, type = 'out' })
         orderNo: orderNo || null,
         unitPrice: unitPrice === '' ? null : Number(unitPrice),
         note: note || null,
+        restoreMaterials: moveType === 'out' && source === 'manual' ? restoreMaterials : false,
       });
       toast.success(moveType === 'in' ? `${q} adet girişi yapıldı` : `${q} adet çıkışı yapıldı`);
       onClose?.();
@@ -60,6 +68,7 @@ export default function StockMoveModal({ open, onClose, variant, type = 'out' })
       setOrderNo('');
       setUnitPrice('');
       setNote('');
+      setRestoreMaterials(false);
     } catch (e) {
       toast.error(e.message);
     }
@@ -127,7 +136,7 @@ export default function StockMoveModal({ open, onClose, variant, type = 'out' })
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Tip</label>
-            <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+            <select className="input" value={source} onChange={(e) => changeSource(e.target.value)}>
               {SOURCES[moveType].map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -148,6 +157,20 @@ export default function StockMoveModal({ open, onClose, variant, type = 'out' })
             />
           </div>
         </div>
+
+        {moveType === 'out' && source === 'manual' && (
+          <label className="flex items-start gap-3 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={restoreMaterials}
+              onChange={(e) => setRestoreMaterials(e.target.checked)}
+            />
+            <span>
+              Yanlis uretim girisiyse, bu cikista kullanilan hammaddeleri receteye gore geri ekle.
+            </span>
+          </label>
+        )}
 
         {(source === 'sale' || source === 'return') && (
           <div className="grid grid-cols-2 gap-3">

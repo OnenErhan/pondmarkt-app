@@ -85,6 +85,7 @@ export function useRecordWarehouseMove() {
       unitPrice,
       note,
       date,
+      restoreMaterials,
     }) => {
       const { data, error } = await supabase.rpc('record_warehouse_move', {
         p_variant_id: variantId,
@@ -96,6 +97,7 @@ export function useRecordWarehouseMove() {
         p_unit_price: unitPrice ?? null,
         p_note: note ?? null,
         p_date: date ?? null,
+        p_restore_materials: restoreMaterials ?? false,
       });
       if (error) throw error;
       return data;
