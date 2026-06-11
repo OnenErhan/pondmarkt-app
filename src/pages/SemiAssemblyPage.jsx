@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, Factory } from 'lucide-react';
+import { AlertTriangle, Check, Factory, RefreshCw } from 'lucide-react';
 import {
   useProductTypes,
   useProductTypeDetail,
@@ -26,7 +26,13 @@ export default function SemiAssemblyPage() {
   const { data: detail } = useProductTypeDetail(type?.id);
   const { data: components = [] } = useProductTypeSemiComponents(type?.id);
   const assemble = useRecordSemiAssembly();
-  const { data: recentAssembly = [] } = useSemiAssemblyList();
+  const {
+    data: recentAssembly = [],
+    error: assemblyError,
+    isError: isAssemblyError,
+    refetch: refetchAssembly,
+    isFetching: isAssemblyFetching,
+  } = useSemiAssemblyList();
 
   const assemblyTypes = useMemo(() => {
     const set = new Set(componentTypeIds);
@@ -259,6 +265,29 @@ export default function SemiAssemblyPage() {
 
       <section className="mt-8">
         <h2 className="mb-2 text-lg font-semibold text-slate-900">Son Birlestirme Kayitlari</h2>
+        {isAssemblyError && (
+          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">Kayitlar yuklenirken hata olustu</p>
+                <p className="mt-1 break-all text-xs">{assemblyError?.message ?? 'Bilinmeyen hata'}</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100"
+                    onClick={() => refetchAssembly()}
+                    disabled={isAssemblyFetching}
+                  >
+                    <RefreshCw size={13} className={isAssemblyFetching ? 'animate-spin' : ''} />
+                    Tekrar dene
+                  </button>
+                  <span className="text-xs text-amber-800">F12 &gt; Console ekraninda [semi-assembly] loglarini kontrol edin.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {recentAssembly.length === 0 ? (
           <p className="text-sm text-slate-400">Henuz birlestirme kaydi yok.</p>
         ) : (

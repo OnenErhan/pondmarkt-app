@@ -3,6 +3,14 @@ import { supabase } from '../lib/supabase/client.js';
 
 const KEY = ['production'];
 
+function logSemiAssemblyDebug(stage, detail) {
+  if (typeof window === 'undefined') return;
+  const debugEnabled = import.meta.env.DEV || window.localStorage?.getItem('debugSemiAssembly') === '1';
+  if (!debugEnabled) return;
+  // Debug-only logs to inspect fallback behavior and raw Supabase errors in browser console.
+  console.debug(`[semi-assembly] ${stage}`, detail);
+}
+
 // All product variants for selection (with type/size/color labels)
 export function useAllVariants() {
   return useQuery({
@@ -93,7 +101,12 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
           ),
       );
       const rich = await richQuery;
-      if (!rich.error) return rich.data ?? [];
+      if (!rich.error) {
+        logSemiAssemblyDebug('rich-query-success', { rows: (rich.data ?? []).length, from, to, variantId });
+        return rich.data ?? [];
+      }
+
+      logSemiAssemblyDebug('rich-query-error', rich.error);
 
       if (isMissingRelationError(rich.error, 'semi_component_assembly_consumed')) {
         const leanQuery = applyFilters(
@@ -105,11 +118,13 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
         );
         const lean = await leanQuery;
         if (!lean.error) {
+          logSemiAssemblyDebug('lean-query-success', { rows: (lean.data ?? []).length, from, to, variantId });
           return (lean.data ?? []).map((row) => ({
             ...row,
             semi_component_assembly_consumed: [],
           }));
         }
+        logSemiAssemblyDebug('lean-query-error', lean.error);
         if (!isMissingRelationError(lean.error, 'semi_component_assembly_entries')) {
           throw lean.error;
         }
@@ -128,6 +143,7 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
       );
       const legacy = await legacyQuery;
       if (legacy.error) throw legacy.error;
+      logSemiAssemblyDebug('legacy-query-success', { rows: (legacy.data ?? []).length, from, to, variantId });
       return (legacy.data ?? []).map((row) => ({
         ...row,
         semi_component_assembly_consumed: [],

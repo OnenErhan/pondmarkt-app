@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ClipboardList, XCircle, Plus, Filter, Tag } from 'lucide-react';
+import { AlertTriangle, ClipboardList, XCircle, Plus, Filter, Tag, RefreshCw } from 'lucide-react';
 import { useProductionList, useSemiAssemblyList, useVoidProduction } from '../hooks/useProduction.js';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import Modal from '../components/ui/Modal.jsx';
@@ -16,7 +16,14 @@ export default function ProductionListPage() {
   const [from, setFrom] = useState(todayMinusDays(30));
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const { data: items = [], isLoading } = useProductionList({ from, to });
-  const { data: assemblyItems = [], isLoading: isAssemblyLoading } = useSemiAssemblyList({ from, to });
+  const {
+    data: assemblyItems = [],
+    isLoading: isAssemblyLoading,
+    isError: isAssemblyError,
+    error: assemblyError,
+    refetch: refetchAssembly,
+    isFetching: isAssemblyFetching,
+  } = useSemiAssemblyList({ from, to });
   const voidM = useVoidProduction();
   const navigate = useNavigate();
   const [voiding, setVoiding] = useState(null);
@@ -187,6 +194,30 @@ export default function ProductionListPage() {
           <h2 className="text-lg font-semibold text-slate-900">Yari Mamul Birlestirme Gecmisi</h2>
           <span className="text-xs text-slate-500">{assemblyItems.length} kayit</span>
         </div>
+
+        {isAssemblyError && (
+          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">Birlestirme gecmisi yuklenemedi</p>
+                <p className="mt-1 break-all text-xs">{assemblyError?.message ?? 'Bilinmeyen hata'}</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100"
+                    onClick={() => refetchAssembly()}
+                    disabled={isAssemblyFetching}
+                  >
+                    <RefreshCw size={13} className={isAssemblyFetching ? 'animate-spin' : ''} />
+                    Tekrar dene
+                  </button>
+                  <span className="text-xs text-amber-800">F12 &gt; Console ekraninda [semi-assembly] loglarini kontrol edin.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isAssemblyLoading ? (
           <p className="text-sm text-slate-400">Yukleniyor...</p>
