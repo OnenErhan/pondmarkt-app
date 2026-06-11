@@ -7,7 +7,8 @@ import EmptyState from '../components/ui/EmptyState.jsx';
 import { toast } from '../components/ui/Toast.jsx';
 
 const TABS = [
-  { value: 'production', label: 'Üretim' },
+  { value: 'fullProduction', label: 'Tam Mamul' },
+  { value: 'semiProduction', label: 'Yarı Mamul' },
   { value: 'sales', label: 'Satış' },
   { value: 'consumption', label: 'Hammadde Tüketimi' },
 ];
@@ -87,24 +88,29 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {tab === 'production' && <ProductionReport from={from} to={to} />}
+      {tab === 'fullProduction' && <FullProductionReport from={from} to={to} />}
+      {tab === 'semiProduction' && <SemiProductionReport from={from} to={to} />}
       {tab === 'sales' && <SalesReport from={from} to={to} />}
       {tab === 'consumption' && <ConsumptionReport from={from} to={to} />}
     </div>
   );
 }
 
-// --- Production report ---
-function useProductionReport(from, to) {
+function formatVariantLabel(row) {
+  return `${row.product_variants?.product_types?.name ?? ''} · ${row.product_variants?.product_colors?.label ?? ''} · ${row.product_variants?.product_sizes?.label ?? ''}`;
+}
+
+// --- Tam mamul report ---
+function useFullProductionReport(from, to) {
   return useQuery({
-    queryKey: ['report', 'production', from, to],
+    queryKey: ['report', 'full-production', from, to],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('production_entries')
         .select(
-          'id, date, qty, voided, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
+          'id, date, qty, operator_note, entry_kind, product_variants(sku, product_types(name), product_sizes(label), product_colors(label))',
         )
-        .eq('voided', false)
+        .or('entry_kind.eq.full,entry_kind.is.null')
         .gte('date', from)
         .lte('date', to)
         .order('date');
@@ -114,8 +120,8 @@ function useProductionReport(from, to) {
   });
 }
 
-function ProductionReport({ from, to }) {
-  const { data: rows = [], isLoading } = useProductionReport(from, to);
+function FullProductionReport({ from, to }) {
+  const { data: rows = [], isLoading } = useFullProductionReport(from, to);
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -168,23 +174,24 @@ function ProductionReport({ from, to }) {
           Renk: r.product_variants?.product_colors?.label,
           Beden: r.product_variants?.product_sizes?.label,
           Adet: Number(r.qty),
+          Not: r.operator_note ?? '',
         })),
       ),
       'Detay',
     );
-    XLSX.writeFile(wb, `uretim-raporu-${from}_${to}.xlsx`);
+    XLSX.writeFile(wb, `tam-mamul-raporu-${from}_${to}.xlsx`);
     toast.success('Excel indirildi');
   };
 
   if (isLoading) return <p className="text-sm text-slate-400">Yükleniyor...</p>;
   if (rows.length === 0)
-    return <EmptyState icon={BarChart3} title="Bu aralıkta üretim yok" message="Tarih aralığını genişletin" />;
+    return <EmptyState icon={BarChart3} title="Bu aralıkta tam mamul üretimi yok" message="Tarih aralığını genişletin" />;
 
   return (
     <div className="space-y-4">
       <div className="card flex items-center justify-between">
         <div>
-          <div className="text-xs uppercase tracking-wide text-slate-500">Toplam Üretim</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Toplam Tam Mamul</div>
           <div className="text-2xl font-bold text-slate-900">{fmt(total)} adet</div>
           <div className="text-xs text-slate-500">{rows.length} kayıt · {grouped.length} farklı varyant</div>
         </div>
@@ -208,6 +215,132 @@ function ProductionReport({ from, to }) {
               <tr key={r.sku} className="text-sm hover:bg-slate-50">
                 <td className="px-4 py-3 font-mono text-xs">{r.sku}</td>
                 <td className="px-4 py-3">{r.type} · {r.color} · {r.size}</td>
+                <td className="px-4 py-3 text-right font-semibold">{fmt(r.qty)}</td>
+                <td className="px-4 py-3 text-right text-slate-500">{r.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// --- Yari mamul report ---
+function useSemiProductionReport(from, to) {
+  return useQuery({
+    queryKey: ['report', 'semi-production', from, to],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('semi_component_production_entries')
+        .select(
+          'id, date, qty, operator_note, product_variants(sku, product_types(name), product_sizes(label), product_colors(label)), product_type_semi_components(name)',
+        )
+        .gte('date', from)
+        .lte('date', to)
+        .order('date');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+function SemiProductionReport({ from, to }) {
+  const { data: rows = [], isLoading } = useSemiProductionReport(from, to);
+
+  const grouped = useMemo(() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const sku = r.product_variants?.sku ?? '?';
+      const component = r.product_type_semi_components?.name ?? 'Parça';
+      const key = `${sku}__${component}`;
+      const cur = map.get(key) || {
+        sku,
+        component,
+        name: formatVariantLabel(r),
+        qty: 0,
+        count: 0,
+      };
+      cur.qty += Number(r.qty);
+      cur.count += 1;
+      map.set(key, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+  }, [rows]);
+
+  const totalQty = grouped.reduce((s, r) => s + r.qty, 0);
+
+  const exportXlsx = () => {
+    if (grouped.length === 0) {
+      toast.error('İhraç edilecek veri yok');
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        grouped.map((r) => ({
+          SKU: r.sku,
+          Ürün: r.name,
+          Parça: r.component,
+          Adet: r.qty,
+          Kayıt: r.count,
+        })),
+      ),
+      'Özet',
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        rows.map((r) => ({
+          Tarih: r.date,
+          SKU: r.product_variants?.sku,
+          Ürün: formatVariantLabel(r),
+          Parça: r.product_type_semi_components?.name,
+          Adet: Number(r.qty),
+          Not: r.operator_note ?? '',
+        })),
+      ),
+      'Detay',
+    );
+    XLSX.writeFile(wb, `yari-mamul-raporu-${from}_${to}.xlsx`);
+    toast.success('Excel indirildi');
+  };
+
+  if (isLoading) return <p className="text-sm text-slate-400">Yükleniyor...</p>;
+  if (rows.length === 0)
+    return <EmptyState icon={BarChart3} title="Bu aralıkta yarı mamul üretimi yok" message="Tarih aralığını genişletin" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="card flex items-center justify-between">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Toplam Yarı Mamul</div>
+          <div className="text-2xl font-bold text-slate-900">{fmt(totalQty)} adet</div>
+          <div className="text-xs text-slate-500">{rows.length} kayıt · {grouped.length} farklı parça/ürün</div>
+        </div>
+        <button type="button" onClick={exportXlsx} className="btn-primary">
+          <Download size={16} /> Excel İndir
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+        <table className="min-w-full divide-y divide-slate-100">
+          <thead className="bg-slate-50">
+            <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+              <th className="px-4 py-3">SKU</th>
+              <th className="px-4 py-3">Ürün</th>
+              <th className="px-4 py-3">Parça</th>
+              <th className="px-4 py-3 text-right">Adet</th>
+              <th className="px-4 py-3 text-right">Kayıt</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {grouped.map((r) => (
+              <tr key={`${r.sku}-${r.component}`} className="text-sm hover:bg-slate-50">
+                <td className="px-4 py-3 font-mono text-xs">{r.sku}</td>
+                <td className="px-4 py-3">{r.name}</td>
+                <td className="px-4 py-3 font-medium text-slate-700">{r.component}</td>
                 <td className="px-4 py-3 text-right font-semibold">{fmt(r.qty)}</td>
                 <td className="px-4 py-3 text-right text-slate-500">{r.count}</td>
               </tr>
