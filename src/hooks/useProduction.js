@@ -121,6 +121,49 @@ export function useProductionList({ from, to, variantId } = {}) {
   });
 }
 
+export function useSemiProductionList({ from, to, variantId } = {}) {
+  return useQuery({
+    queryKey: [...KEY, 'semi-component', { from, to, variantId }],
+    queryFn: async () => {
+      let query = supabase
+        .from('semi_component_production_entries')
+        .select('id, date, qty, variant_id, component_id, operator_note, created_at, product_type_semi_components(name)')
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (from) query = query.gte('date', from);
+      if (to) query = query.lte('date', to);
+      if (variantId) query = query.eq('variant_id', variantId);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const ids = Array.from(new Set((data ?? []).map((row) => row.variant_id).filter(Boolean)));
+      if (ids.length === 0) return [];
+
+      const { data: variants, error: variantError } = await supabase
+        .from('product_variants')
+        .select('id, sku, current_stock, product_types(name), product_sizes(label), product_colors(label)')
+        .in('id', ids);
+      if (variantError) throw variantError;
+
+      const byId = new Map((variants ?? []).map((variant) => [variant.id, variant]));
+      return (data ?? []).map((row) => ({
+        ...row,
+        entry_kind: 'semi',
+        voided: false,
+        voided_at: null,
+        void_reason: null,
+        production_consumed: [],
+        production_consumed_variants: [],
+        component_name: row.product_type_semi_components?.name ?? null,
+        product_variants: byId.get(row.variant_id) ?? null,
+      }));
+    },
+  });
+}
+
 export function useSemiAssemblyList({ from, to, variantId } = {}) {
   return useQuery({
     queryKey: [...KEY, 'semi-assembly', { from, to, variantId }],

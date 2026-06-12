@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, ClipboardList, Factory, RotateCcw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ClipboardList, Factory, RotateCcw } from 'lucide-react';
 import {
   useProductTypes,
   useProductTypeDetail,
   useProductTypeSemiComponents,
   useSemiComponentStocks,
 } from '../hooks/useProducts.js';
-import { useProductionList, useRecordSemiProduction } from '../hooks/useProduction.js';
+import { useRecordSemiProduction, useSemiProductionList } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
 import { useSemiProductTypeIds } from '../hooks/useProducts.js';
 
@@ -34,7 +34,12 @@ export default function SemiProductionPage() {
   const { data: detail } = useProductTypeDetail(type?.id);
   const { data: components = [] } = useProductTypeSemiComponents(type?.id);
   const record = useRecordSemiProduction();
-  const { data: productionItems = [], isLoading: isHistoryLoading } = useProductionList({
+  const {
+    data: recentSemiProductions = [],
+    isLoading: isHistoryLoading,
+    isError: isHistoryError,
+    error: historyError,
+  } = useSemiProductionList({
     from: todayMinusDays(30),
     to: new Date().toISOString().slice(0, 10),
   });
@@ -55,11 +60,6 @@ export default function SemiProductionPage() {
     const row = componentStocks.find((x) => x.component_id === component.id);
     return Number(row?.current_stock ?? 0);
   }, [componentStocks, component]);
-  const recentSemiProductions = useMemo(
-    () => productionItems.filter((item) => item.entry_kind === 'semi').slice(0, 20),
-    [productionItems],
-  );
-
   const reset = () => {
     setStep(0);
     setType(null);
@@ -365,7 +365,17 @@ export default function SemiProductionPage() {
           </Link>
         </div>
 
-        {isHistoryLoading ? (
+        {isHistoryError ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">Yari mamul kayitlari yuklenemedi</p>
+                <p className="mt-1 break-all text-xs">{historyError?.message ?? 'Bilinmeyen hata'}</p>
+              </div>
+            </div>
+          </div>
+        ) : isHistoryLoading ? (
           <div className="card text-sm text-slate-400">Yukleniyor...</div>
         ) : recentSemiProductions.length === 0 ? (
           <div className="card flex flex-col items-center justify-center gap-2 py-10 text-center text-sm text-slate-500">
