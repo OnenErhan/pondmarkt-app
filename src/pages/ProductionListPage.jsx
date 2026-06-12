@@ -136,6 +136,9 @@ export default function ProductionListPage() {
                   </td>
                   <td className="px-4 py-3 font-medium">
                     {e.product_variants?.product_types?.name} · {e.product_variants?.product_colors?.label} · {e.product_variants?.product_sizes?.label}
+                    {e.entry_kind === 'semi' && e.component_name ? (
+                      <div className="mt-1 text-xs font-normal text-amber-700">Parca: {e.component_name}</div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{e.product_variants?.sku}</td>
                   <td className="px-4 py-3">

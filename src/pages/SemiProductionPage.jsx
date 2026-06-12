@@ -389,6 +389,7 @@ export default function SemiProductionPage() {
                 <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">Tarih</th>
                   <th className="px-4 py-3">Yari Mamul</th>
+                  <th className="px-4 py-3">Parca</th>
                   <th className="px-4 py-3">SKU</th>
                   <th className="px-4 py-3 text-right">Adet</th>
                   <th className="px-4 py-3">Not</th>
@@ -406,6 +407,7 @@ export default function SemiProductionPage() {
                       {entry.product_variants?.product_types?.name} · {entry.product_variants?.product_colors?.label} ·{' '}
                       {entry.product_variants?.product_sizes?.label}
                     </td>
+                    <td className="px-4 py-3 text-slate-700">{entry.component_name ?? '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs">{entry.product_variants?.sku}</td>
                     <td className="px-4 py-3 text-right font-semibold">
                       {Number(entry.qty).toLocaleString('tr-TR')}
