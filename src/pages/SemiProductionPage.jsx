@@ -1,17 +1,23 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Factory, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ClipboardList, Factory, RotateCcw } from 'lucide-react';
 import {
   useProductTypes,
   useProductTypeDetail,
   useProductTypeSemiComponents,
   useSemiComponentStocks,
 } from '../hooks/useProducts.js';
-import { useRecordSemiProduction } from '../hooks/useProduction.js';
+import { useProductionList, useRecordSemiProduction } from '../hooks/useProduction.js';
 import { toast } from '../components/ui/Toast.jsx';
 import { useSemiProductTypeIds } from '../hooks/useProducts.js';
 
 const STEPS = ['Tip', 'Beden', 'Renk', 'Parca', 'Adet'];
+
+function todayMinusDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
 
 export default function SemiProductionPage() {
   const [step, setStep] = useState(0);
@@ -28,6 +34,10 @@ export default function SemiProductionPage() {
   const { data: detail } = useProductTypeDetail(type?.id);
   const { data: components = [] } = useProductTypeSemiComponents(type?.id);
   const record = useRecordSemiProduction();
+  const { data: productionItems = [], isLoading: isHistoryLoading } = useProductionList({
+    from: todayMinusDays(30),
+    to: new Date().toISOString().slice(0, 10),
+  });
   const semiTypes = useMemo(() => {
     const idSet = new Set(semiTypeIds);
     return sortTypes(types.filter((t) => idSet.has(t.id)));
@@ -45,6 +55,10 @@ export default function SemiProductionPage() {
     const row = componentStocks.find((x) => x.component_id === component.id);
     return Number(row?.current_stock ?? 0);
   }, [componentStocks, component]);
+  const recentSemiProductions = useMemo(
+    () => productionItems.filter((item) => item.entry_kind === 'semi').slice(0, 20),
+    [productionItems],
+  );
 
   const reset = () => {
     setStep(0);
@@ -339,6 +353,72 @@ export default function SemiProductionPage() {
           Ileri <ArrowRight size={16} />
         </button>
       </div>
+
+      <section className="mt-8 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Son Yari Mamul Uretim Kayitlari</h2>
+            <p className="text-sm text-slate-500">Bu ekrandan girilen yari mamul kayitlarinin son 30 gunluk listesi</p>
+          </div>
+          <Link to="/production" className="btn-secondary w-fit">
+            Tum Gecmisi Ac
+          </Link>
+        </div>
+
+        {isHistoryLoading ? (
+          <div className="card text-sm text-slate-400">Yukleniyor...</div>
+        ) : recentSemiProductions.length === 0 ? (
+          <div className="card flex flex-col items-center justify-center gap-2 py-10 text-center text-sm text-slate-500">
+            <ClipboardList size={20} className="text-slate-300" />
+            <p>Henuz yari mamul kaydi yok.</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+            <table className="min-w-full divide-y divide-slate-100">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3">Tarih</th>
+                  <th className="px-4 py-3">Yari Mamul</th>
+                  <th className="px-4 py-3">SKU</th>
+                  <th className="px-4 py-3 text-right">Adet</th>
+                  <th className="px-4 py-3">Not</th>
+                  <th className="px-4 py-3">Durum</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {recentSemiProductions.map((entry) => (
+                  <tr
+                    key={entry.id}
+                    className={`text-sm ${entry.voided ? 'bg-red-50/40 text-slate-400 line-through' : 'hover:bg-slate-50'}`}
+                  >
+                    <td className="px-4 py-3">{new Date(entry.date).toLocaleDateString('tr-TR')}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {entry.product_variants?.product_types?.name} · {entry.product_variants?.product_colors?.label} ·{' '}
+                      {entry.product_variants?.product_sizes?.label}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.product_variants?.sku}</td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      {Number(entry.qty).toLocaleString('tr-TR')}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{entry.operator_note ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {entry.voided ? (
+                        <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
+                          Iptal
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                          Aktif
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
