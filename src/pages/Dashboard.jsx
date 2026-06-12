@@ -8,8 +8,28 @@ import {
   ShoppingCart,
   Calendar,
   ArrowRight,
+  Activity,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
-import { useDashboardStats, useDailyProduction, useTopVariants } from '../hooks/useDashboard.js';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  useDashboardStats,
+  useDailyOps,
+  useOpsHealth,
+  useTopVariants,
+} from '../hooks/useDashboard.js';
 
 function todayMinusDays(n) {
   const d = new Date();
@@ -18,17 +38,20 @@ function todayMinusDays(n) {
 }
 const fmt = (n) => Number(n || 0).toLocaleString('tr-TR');
 const fmtTl = (n) => `${Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} ₺`;
+const fmtShortDate = (s) => {
+  const d = new Date(s);
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+};
 
 export default function Dashboard() {
   const { data: stats, isLoading } = useDashboardStats();
-  const { data: daily = [] } = useDailyProduction(14);
+  const { data: dailyOps = [], isLoading: isOpsLoading } = useDailyOps(14);
+  const { data: opsHealth, isLoading: isHealthLoading } = useOpsHealth();
   const { data: topAll = [] } = useTopVariants({
     from: todayMinusDays(30),
     to: new Date().toISOString().slice(0, 10),
     limit: 5,
   });
-
-  const maxDaily = Math.max(1, ...daily.map((d) => d.qty));
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -62,76 +85,163 @@ export default function Dashboard() {
         <div className="card lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-semibold flex items-center gap-2">
-              <TrendingUp size={16} /> Son 14 Günlük Üretim
+              <TrendingUp size={16} /> Son 14 Gün Üretim vs Satış
             </h2>
             <Link to="/production" className="text-xs text-brand-600 hover:underline">
               Tümünü gör <ArrowRight size={12} className="inline" />
             </Link>
           </div>
-          {daily.length === 0 ? (
+          {dailyOps.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-400">Veri yok</p>
           ) : (
-            <div className="flex h-48 items-end gap-1">
-              {daily.map((d) => {
-                const h = (d.qty / maxDaily) * 100;
-                const dt = new Date(d.date);
-                return (
-                  <div key={d.date} className="group relative flex flex-1 flex-col items-center">
-                    <div
-                      className={`w-full rounded-t transition ${d.qty > 0 ? 'bg-brand-500 hover:bg-brand-600' : 'bg-slate-100'}`}
-                      style={{ height: `${Math.max(h, 2)}%` }}
-                      title={`${dt.toLocaleDateString('tr-TR')}: ${d.qty}`}
-                    />
-                    <div className="absolute -top-6 hidden rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-white group-hover:block">
-                      {d.qty}
-                    </div>
-                    <span className="mt-1 text-[10px] text-slate-400">
-                      {dt.getDate()}/{dt.getMonth() + 1}
-                    </span>
-                  </div>
-                );
-              })}
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyOps} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={fmtShortDate}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<OpsTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line
+                    type="monotone"
+                    dataKey="productionQty"
+                    name="Üretim"
+                    stroke="#16a34a"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="saleQty"
+                    name="Satış"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           )}
         </div>
 
-        <div className="card">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold flex items-center gap-2 text-red-700">
-              <AlertTriangle size={16} /> Düşük Stok
-            </h2>
-            <Link to="/materials" className="text-xs text-brand-600 hover:underline">
-              Hammaddeler <ArrowRight size={12} className="inline" />
-            </Link>
-          </div>
-          {!stats?.lowStockItems?.length ? (
-            <p className="py-6 text-center text-sm text-slate-400">Tüm stoklar yeterli</p>
-          ) : (
-            <div className="space-y-2">
-              {stats.lowStockItems.slice(0, 6).map((m) => (
-                <div key={m.id}
-                  className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 text-sm ring-1 ring-red-100">
-                  <div>
-                    <div className="font-medium text-slate-900">{m.name}</div>
-                    <div className="text-xs font-mono text-slate-500">{m.code}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-red-700">{fmt(m.current_stock)} {m.unit}</div>
-                    <div className="text-xs text-slate-500">min {fmt(m.min_stock)}</div>
-                  </div>
-                </div>
-              ))}
-              {stats.lowStockItems.length > 6 && (
-                <p className="text-center text-xs text-slate-500">
-                  +{stats.lowStockItems.length - 6} daha
-                </p>
-              )}
+        <div className="space-y-6">
+          <div className="card">
+            <div className="mb-3 flex items-center gap-2">
+              <Activity size={16} className="text-brand-600" />
+              <h2 className="text-base font-semibold">Aktivite Kontrolü</h2>
             </div>
-          )}
+            {isHealthLoading ? (
+              <p className="py-4 text-sm text-slate-400">Kontrol ediliyor…</p>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <ActivityRow
+                  label="Üretim"
+                  active={Boolean(opsHealth?.productionActive)}
+                  qty={opsHealth?.weeklyProductionQty}
+                  lastDate={opsHealth?.lastProductionDate}
+                />
+                <ActivityRow
+                  label="Satış"
+                  active={Boolean(opsHealth?.saleActive)}
+                  qty={opsHealth?.weeklySaleQty}
+                  lastDate={opsHealth?.lastSaleDate}
+                />
+                <p className="pt-1 text-xs text-slate-500">
+                  Son 7 gün işlem miktarına göre değerlendirilir.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold flex items-center gap-2 text-red-700">
+                <AlertTriangle size={16} /> Düşük Stok
+              </h2>
+              <Link to="/materials" className="text-xs text-brand-600 hover:underline">
+                Hammaddeler <ArrowRight size={12} className="inline" />
+              </Link>
+            </div>
+            {!stats?.lowStockItems?.length ? (
+              <p className="py-6 text-center text-sm text-slate-400">Tüm stoklar yeterli</p>
+            ) : (
+              <div className="space-y-2">
+                {stats.lowStockItems.slice(0, 4).map((m) => (
+                  <div key={m.id}
+                    className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 text-sm ring-1 ring-red-100">
+                    <div>
+                      <div className="font-medium text-slate-900">{m.name}</div>
+                      <div className="text-xs font-mono text-slate-500">{m.code}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-red-700">{fmt(m.current_stock)} {m.unit}</div>
+                      <div className="text-xs text-slate-500">min {fmt(m.min_stock)}</div>
+                    </div>
+                  </div>
+                ))}
+                {stats.lowStockItems.length > 4 && (
+                  <p className="text-center text-xs text-slate-500">
+                    +{stats.lowStockItems.length - 4} daha
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="card">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold">Son 14 Gün Ciro Trendi</h2>
+            <Link to="/reports" className="text-xs text-brand-600 hover:underline">
+              Ciro detay <ArrowRight size={12} className="inline" />
+            </Link>
+          </div>
+          {dailyOps.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-400">Ciro verisi yok</p>
+          ) : (
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dailyOps} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="ciroGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#16a34a" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#16a34a" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={fmtShortDate}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => fmtTl(v)} labelFormatter={(l) => new Date(l).toLocaleDateString('tr-TR')} />
+                  <Area
+                    type="monotone"
+                    dataKey="saleRevenue"
+                    name="Ciro"
+                    stroke="#16a34a"
+                    fill="url(#ciroGradient)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
         <div className="card">
           <h2 className="mb-3 text-base font-semibold flex items-center gap-2">
             <Calendar size={16} /> Bu Ay Özet
@@ -174,6 +284,10 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {isOpsLoading && (
+        <p className="mt-4 text-center text-xs text-slate-500">Grafikler güncelleniyor…</p>
+      )}
     </div>
   );
 }
@@ -208,6 +322,41 @@ function Stat({ label, value, accent }) {
       <div className={`mt-1 text-lg font-bold ${accent === 'emerald' ? 'text-emerald-700' : 'text-slate-900'}`}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function ActivityRow({ label, active, qty, lastDate }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-medium text-slate-800">{label}</div>
+        <div className={`inline-flex items-center gap-1 text-xs font-semibold ${active ? 'text-emerald-700' : 'text-red-700'}`}>
+          {active ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+          {active ? 'Aktif' : 'Pasif'}
+        </div>
+      </div>
+      <div className="mt-1 text-xs text-slate-500">
+        Son 7 gün miktar: <span className="font-semibold text-slate-700">{fmt(qty)}</span>
+      </div>
+      <div className="text-xs text-slate-500">
+        Son işlem: {lastDate ? new Date(lastDate).toLocaleDateString('tr-TR') : '-'}
+      </div>
+    </div>
+  );
+}
+
+function OpsTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const prod = payload.find((p) => p.dataKey === 'productionQty')?.value ?? 0;
+  const sale = payload.find((p) => p.dataKey === 'saleQty')?.value ?? 0;
+  const row = payload[0]?.payload;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-sm">
+      <div className="mb-1 font-medium text-slate-700">{new Date(label).toLocaleDateString('tr-TR')}</div>
+      <div className="text-emerald-700">Üretim: {fmt(prod)} adet</div>
+      <div className="text-brand-700">Satış: {fmt(sale)} adet</div>
+      <div className="text-slate-600">Ciro: {fmtTl(row?.saleRevenue || 0)}</div>
     </div>
   );
 }

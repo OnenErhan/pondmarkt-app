@@ -9,6 +9,16 @@ function monthStartIso() {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
 }
 
+function buildDateMap(days) {
+  const map = new Map();
+  for (let i = 0; i < days; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1 - i));
+    map.set(d.toISOString().slice(0, 10), 0);
+  }
+  return map;
+}
+
 export function useDashboardStats() {
   return useQuery({
     queryKey: ['dashboard', 'stats', todayIso()],
@@ -111,18 +121,127 @@ export function useDailyProduction(days = 14) {
         .gte('date', fromIso)
         .order('date');
       if (error) throw error;
-      // group
-      const map = new Map();
-      for (let i = 0; i < days; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - (days - 1 - i));
-        const key = d.toISOString().slice(0, 10);
-        map.set(key, 0);
-      }
+      const map = buildDateMap(days);
       (data || []).forEach((r) => {
         map.set(r.date, (map.get(r.date) || 0) + Number(r.qty));
       });
       return Array.from(map.entries()).map(([date, qty]) => ({ date, qty }));
+    },
+  });
+}
+
+// Daily production/sales/revenue series (last N days)
+export function useDailyOps(days = 14) {
+  return useQuery({
+    queryKey: ['dashboard', 'daily-ops', days],
+    queryFn: async () => {
+      const from = new Date();
+      from.setDate(from.getDate() - days + 1);
+      const fromIso = from.toISOString().slice(0, 10);
+
+      const [prod, sales] = await Promise.all([
+        supabase
+          .from('production_entries')
+          .select('date, qty')
+          .eq('voided', false)
+          .gte('date', fromIso)
+          .order('date'),
+        supabase
+          .from('product_stock_moves')
+          .select('date, qty, unit_price')
+          .eq('type', 'out')
+          .eq('source', 'sale')
+          .gte('date', fromIso)
+          .order('date'),
+      ]);
+
+      if (prod.error) throw prod.error;
+      if (sales.error) throw sales.error;
+
+      const base = buildDateMap(days);
+      const byDate = new Map();
+      base.forEach((_, date) => {
+        byDate.set(date, {
+          date,
+          productionQty: 0,
+          saleQty: 0,
+          saleRevenue: 0,
+        });
+      });
+
+      (prod.data || []).forEach((r) => {
+        const row = byDate.get(r.date);
+        if (!row) return;
+        row.productionQty += Number(r.qty || 0);
+      });
+
+      (sales.data || []).forEach((r) => {
+        const day = String(r.date).slice(0, 10);
+        const row = byDate.get(day);
+        if (!row) return;
+        const qty = Number(r.qty || 0);
+        row.saleQty += qty;
+        row.saleRevenue += qty * Number(r.unit_price || 0);
+      });
+
+      return Array.from(byDate.values());
+    },
+  });
+}
+
+// Activity check for "is production/sales active" status cards.
+export function useOpsHealth() {
+  return useQuery({
+    queryKey: ['dashboard', 'ops-health', todayIso()],
+    queryFn: async () => {
+      const today = todayIso();
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - 6);
+      const weekStartIso = weekStart.toISOString().slice(0, 10);
+
+      const [lastProd, lastSale, weeklyProd, weeklySale] = await Promise.all([
+        supabase
+          .from('production_entries')
+          .select('date')
+          .eq('voided', false)
+          .order('date', { ascending: false })
+          .limit(1),
+        supabase
+          .from('product_stock_moves')
+          .select('date')
+          .eq('type', 'out')
+          .eq('source', 'sale')
+          .order('date', { ascending: false })
+          .limit(1),
+        supabase
+          .from('production_entries')
+          .select('qty')
+          .eq('voided', false)
+          .gte('date', weekStartIso)
+          .lte('date', today),
+        supabase
+          .from('product_stock_moves')
+          .select('qty')
+          .eq('type', 'out')
+          .eq('source', 'sale')
+          .gte('date', weekStartIso)
+          .lte('date', today + 'T23:59:59'),
+      ]);
+
+      const err = lastProd.error || lastSale.error || weeklyProd.error || weeklySale.error;
+      if (err) throw err;
+
+      const weeklyProductionQty = (weeklyProd.data || []).reduce((s, r) => s + Number(r.qty || 0), 0);
+      const weeklySaleQty = (weeklySale.data || []).reduce((s, r) => s + Number(r.qty || 0), 0);
+
+      return {
+        lastProductionDate: lastProd.data?.[0]?.date || null,
+        lastSaleDate: lastSale.data?.[0]?.date || null,
+        weeklyProductionQty,
+        weeklySaleQty,
+        productionActive: weeklyProductionQty > 0,
+        saleActive: weeklySaleQty > 0,
+      };
     },
   });
 }
