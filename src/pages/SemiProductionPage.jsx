@@ -136,7 +136,7 @@ export default function SemiProductionPage() {
         ))}
       </div>
 
-      <div className="card min-h-[420px]">
+      <div className="card">
         {step === 0 && (
           <Step title="Hangi yari mamul tipi uretildi?">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
