@@ -45,6 +45,23 @@ export function useProductionList({ from, to, variantId } = {}) {
         return q;
       };
 
+      const attachVariantDetails = async (rows) => {
+        const ids = Array.from(new Set((rows ?? []).map((row) => row.variant_id).filter(Boolean)));
+        if (ids.length === 0) return rows ?? [];
+
+        const { data: variants, error } = await supabase
+          .from('product_variants')
+          .select('id, sku, current_stock, product_types(name), product_sizes(label), product_colors(label)')
+          .in('id', ids);
+        if (error) throw error;
+
+        const byId = new Map((variants ?? []).map((variant) => [variant.id, variant]));
+        return (rows ?? []).map((row) => ({
+          ...row,
+          product_variants: byId.get(row.variant_id) ?? null,
+        }));
+      };
+
       const latestQuery = applyFilters(
         supabase
           .from('production_entries')
@@ -53,7 +70,37 @@ export function useProductionList({ from, to, variantId } = {}) {
           ),
       );
       const latest = await latestQuery;
-      if (!latest.error) return latest.data;
+      if (!latest.error) {
+        const semiComponentQuery = applyFilters(
+          supabase
+            .from('semi_component_production_entries')
+            .select(
+              'id, date, qty, variant_id, component_id, operator_note, created_at, product_type_semi_components(name)',
+            ),
+        );
+        const semiComponent = await semiComponentQuery;
+
+        const normalizedSemiComponent = semiComponent.error
+          ? []
+          : await attachVariantDetails(
+              (semiComponent.data ?? []).map((row) => ({
+                ...row,
+                entry_kind: 'semi',
+                voided: false,
+                voided_at: null,
+                void_reason: null,
+                production_consumed: [],
+                production_consumed_variants: [],
+                component_name: row.product_type_semi_components?.name ?? null,
+              })),
+            );
+
+        return [...(latest.data ?? []), ...normalizedSemiComponent].sort((a, b) => {
+          const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+        });
+      }
 
       const legacyQuery = applyFilters(
         supabase
