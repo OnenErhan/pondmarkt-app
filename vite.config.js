@@ -25,9 +25,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App is online-only (Supabase). Cache only static assets.
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // App is online-only (Supabase). Do not precache HTML to avoid stale index -> missing chunk MIME errors after deploys.
+        globPatterns: ['**/*.{js,css,svg,png,ico}'],
         navigateFallback: null,
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
       },
     }),
   ],
