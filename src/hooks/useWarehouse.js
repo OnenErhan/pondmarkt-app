@@ -100,18 +100,20 @@ export function useRecordWarehouseMove() {
       };
 
       const wantsRestore = restoreMaterials === true;
-      const call = (extra = {}) => supabase.rpc('record_warehouse_move', { ...params, ...extra });
+      const call = (rpcParams) => supabase.rpc('record_warehouse_move', rpcParams);
 
-      let { data, error } = wantsRestore
-        ? await call({ p_restore_materials: true })
-        : await call();
+      let { data, error } = await call({
+        ...params,
+        p_restore_materials: wantsRestore,
+      });
 
       const missingNewSignature =
         error &&
         (error.code === 'PGRST202' || /Could not find the function .*record_warehouse_move/i.test(error.message ?? ''));
 
       if (missingNewSignature && !wantsRestore) {
-        ({ data, error } = await call({}));
+        // Backward compatibility: environments without 0014 still have the old 9-arg signature.
+        ({ data, error } = await call(params));
       }
 
       if (missingNewSignature && wantsRestore) {
