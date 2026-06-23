@@ -55,13 +55,34 @@ export function useMaterials(category) {
   return useQuery({
     queryKey: [...KEY, category ?? 'all'],
     queryFn: async () => {
-      let q = supabase.from('materials').select('*, suppliers(name)').order('name');
+      let q = supabase.from('materials').select('*, suppliers(name)').eq('active', true).order('name');
       if (category) q = q.eq('category', category);
       const { data, error } = await q;
       if (error) throw error;
       return data;
     },
   });
+}
+
+async function archiveMaterial(id) {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('id, current_stock, active')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error('Silinecek hammadde bulunamadi.');
+  if (!data.active) return { action: 'archived' };
+
+  if (Number(data.current_stock || 0) !== 0) {
+    throw new Error('Bu hammaddenin gecmisi var ve mevcut stok sifir degil. Once stogu sifirlayip tekrar deneyin.');
+  }
+
+  const { error: updateError } = await supabase.from('materials').update({ active: false }).eq('id', id);
+  if (updateError) throw updateError;
+
+  return { action: 'archived' };
 }
 
 export function useSaveMaterial() {
@@ -112,10 +133,12 @@ export function useDeleteMaterial() {
           throw new Error('Bu hammadde recetelerde kullaniliyor. Once recetelerden kaldirip tekrar deneyin.');
         }
         if (moveBlocked) {
-          throw new Error('Bu hammaddenin stok/uretim gecmisi var. Gecmis kayitlar nedeniyle silinemez.');
+          return archiveMaterial(id);
         }
         throw error;
       }
+
+      return { action: 'deleted' };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });

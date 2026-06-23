@@ -28,11 +28,12 @@ export function useDashboardStats() {
 
       const [matAgg, varAgg, lowMat, todayProd, monthProd, todaySale, monthSale] =
         await Promise.all([
-          supabase.from('materials').select('id, current_stock, min_stock, last_price'),
+          supabase.from('materials').select('id, current_stock, min_stock, last_price').eq('active', true),
           supabase.from('product_variants').select('id, current_stock'),
           supabase
             .from('materials')
             .select('id, code, name, current_stock, min_stock, unit, category')
+            .eq('active', true)
             .order('name'),
           supabase
             .from('production_entries')

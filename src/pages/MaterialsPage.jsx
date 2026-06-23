@@ -102,8 +102,8 @@ export default function MaterialsPage() {
   };
   const confirmDelete = async () => {
     try {
-      await del.mutateAsync(deleting.id);
-      toast.success('Hammadde silindi');
+      const result = await del.mutateAsync(deleting.id);
+      toast.success(result?.action === 'archived' ? 'Hammadde arsive alindi' : 'Hammadde silindi');
       setDeleting(null);
     } catch (e) {
       toast.error(e.message);
@@ -259,8 +259,9 @@ export default function MaterialsPage() {
         }
       >
         <p className="text-sm text-slate-600">
-          <span className="font-medium">{deleting?.name}</span> kaydı silinecek. Bu hammadde
-          herhangi bir reçete veya stok hareketinde kullanıldıysa silinemez.
+          <span className="font-medium">{deleting?.name}</span> kaydi silinecek. Bu hammadde
+          recetede kullanildiysa silinemez. Stok veya uretim gecmisi varsa, mevcut stok sifirsa
+          listeden kaldirilarak arsivlenir.
         </p>
       </Modal>
 
