@@ -44,13 +44,13 @@ function MaterialSelect({ value, groupedMaterials, materialMap, onChange }) {
     <div ref={rootRef} className="relative min-w-0">
       <button
         type="button"
-        className={`input flex min-h-[4.25rem] items-start justify-between gap-2 text-left ${open ? 'border-brand-500 ring-2 ring-brand-100' : ''}`}
+        className={`input flex min-h-[3.4rem] items-start justify-between gap-2 py-2 text-left ${open ? 'border-brand-500 ring-2 ring-brand-100' : ''}`}
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={selectedMaterial ? selectedLabel : undefined}
       >
-        <span className={`block min-w-0 flex-1 whitespace-normal break-words pr-1 text-sm leading-5 ${selectedMaterial ? 'text-slate-800' : 'text-slate-400'}`}>
+        <span className={`block min-w-0 flex-1 whitespace-normal break-words pr-1 text-[13px] leading-5 ${selectedMaterial ? 'text-slate-800' : 'text-slate-400'}`}>
           {selectedLabel}
         </span>
         <ChevronDown size={16} className={`mt-1 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
@@ -60,7 +60,7 @@ function MaterialSelect({ value, groupedMaterials, materialMap, onChange }) {
         <div className="absolute left-0 right-0 z-30 mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl ring-1 ring-slate-100">
           <button
             type="button"
-            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 ${value ? 'text-slate-600' : 'bg-slate-50 text-slate-900'}`}
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] hover:bg-slate-50 ${value ? 'text-slate-600' : 'bg-slate-50 text-slate-900'}`}
             onClick={() => {
               onChange('');
               setOpen(false);
@@ -94,7 +94,7 @@ function MaterialSelect({ value, groupedMaterials, materialMap, onChange }) {
                         aria-selected={isSelected}
                         title={optionLabel}
                       >
-                        <span className="min-w-0 flex-1 whitespace-normal break-words text-sm leading-5">{optionLabel}</span>
+                        <span className="min-w-0 flex-1 whitespace-normal break-words text-[13px] leading-5">{optionLabel}</span>
                         {isSelected ? <Check size={14} className="mt-1 shrink-0 text-brand-600" /> : null}
                       </button>
                     );
