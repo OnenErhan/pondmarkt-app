@@ -15,7 +15,6 @@ function RecipeSection({
   section,
   items,
   groupedMaterials,
-  materialMap,
   onCopy,
   onOpenPaste,
   onAddRow,
@@ -48,19 +47,17 @@ function RecipeSection({
         <p className="rounded-lg bg-slate-50 px-3 py-6 text-center text-sm text-slate-400">Bu bölümde henüz kalem yok.</p>
       ) : (
         <div className="space-y-3">
-          {items.map((row, index) => {
-            const selectedMaterial = materialMap.get(String(row.material_id ?? ''));
-            const selectedLabel = selectedMaterial ? formatMaterialOptionLabel(selectedMaterial) : '';
-
-            return (
-            <div key={`${section.key}-${index}`} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
-              <div className="col-span-12 xl:col-span-6">
+          {items.map((row, index) => (
+            <div
+              key={`${section.key}-${index}`}
+              className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(7rem,0.85fr)_minmax(5rem,0.6fr)_auto]"
+            >
+              <div className="col-span-12 min-w-0 xl:col-span-1">
                 <label className="label">Malzeme</label>
                 <select
                   className="input text-sm"
                   value={row.material_id ?? ''}
                   onChange={(event) => onUpdateRow(index, 'material_id', event.target.value)}
-                  title={selectedLabel}
                   required
                 >
                   <option value="">— Seç —</option>
@@ -76,9 +73,8 @@ function RecipeSection({
                     ) : null,
                   )}
                 </select>
-                {selectedLabel ? <p className="mt-1 break-words text-xs leading-5 text-slate-500">{selectedLabel}</p> : null}
               </div>
-              <div className="col-span-5 xl:col-span-3">
+              <div className="col-span-5 xl:col-span-1">
                 <label className="label">Miktar</label>
                 <input
                   type="number"
@@ -89,7 +85,7 @@ function RecipeSection({
                   onChange={(event) => onUpdateRow(index, 'qty', event.target.value)}
                 />
               </div>
-              <div className="col-span-5 xl:col-span-2">
+              <div className="col-span-5 xl:col-span-1">
                 <label className="label">Fire %</label>
                 <input
                   type="number"
@@ -105,8 +101,7 @@ function RecipeSection({
                 </button>
               </div>
             </div>
-            );
-          })}
+          ))}
         </div>
       )}
     </section>
@@ -156,11 +151,6 @@ export default function RecipeEditorPage() {
 
   const codeMap = useMemo(
     () => new Map(materials.map((material) => [String(material.code).trim().toUpperCase(), material])),
-    [materials],
-  );
-
-  const materialMap = useMemo(
-    () => new Map(materials.map((material) => [String(material.id), material])),
     [materials],
   );
 
@@ -432,7 +422,6 @@ export default function RecipeEditorPage() {
               section={section}
               items={getSectionItems(section.key)}
               groupedMaterials={groupedMaterials}
-              materialMap={materialMap}
               onCopy={() => handleCopy(section.key)}
               onOpenPaste={() => {
                 setPasteTarget(section.key);
