@@ -230,7 +230,14 @@ export function useRecipe(variantId) {
         )
         .eq('recipe_id', r.data.id)
         .order('sort_order');
-      if (componentItems.error && !isMissingTableError(componentItems.error)) throw componentItems.error;
+      if (componentItems.error) {
+        if (isMissingTableError(componentItems.error)) {
+          throw new Error(
+            'Parca recetesi tablosu bulunamadi. Uretimde parca+ortak toplam dusum icin 0016 migrationini Supabase tarafinda uygulayin.',
+          );
+        }
+        throw componentItems.error;
+      }
       return {
         recipe: r.data,
         items: items.data,
@@ -279,7 +286,12 @@ export function useSaveRecipe() {
           .from('recipe_component_items')
           .delete()
           .eq('recipe_id', recipeId);
-        if (delComponentItems.error && !isMissingTableError(delComponentItems.error)) {
+        if (delComponentItems.error) {
+          if (isMissingTableError(delComponentItems.error)) {
+            throw new Error(
+              'Parca recetesi tablosu bulunamadi. Kaydetmeden once 0016 migrationini Supabase tarafinda uygulayin.',
+            );
+          }
           throw delComponentItems.error;
         }
       } else {
@@ -323,7 +335,14 @@ export function useSaveRecipe() {
           sort_order: Number(it.sort_order ?? index + 1),
         }));
         const insComponents = await supabase.from('recipe_component_items').insert(componentRows);
-        if (insComponents.error && !isMissingTableError(insComponents.error)) throw insComponents.error;
+        if (insComponents.error) {
+          if (isMissingTableError(insComponents.error)) {
+            throw new Error(
+              'Parca recetesi tablosu bulunamadi. Kaydetmeden once 0016 migrationini Supabase tarafinda uygulayin.',
+            );
+          }
+          throw insComponents.error;
+        }
       }
       return recipeId;
     },

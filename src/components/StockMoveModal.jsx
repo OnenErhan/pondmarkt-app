@@ -167,7 +167,7 @@ export default function StockMoveModal({ open, onClose, variant, type = 'out' })
               onChange={(e) => setRestoreMaterials(e.target.checked)}
             />
             <span>
-              Yanlis uretim girisiyse, bu cikista kullanilan hammaddeleri receteye gore geri ekle.
+              Yanlis uretim girisiyse, bu cikista kullanilan hammaddeleri son uretim tuketimine gore geri ekle.
             </span>
           </label>
         )}
