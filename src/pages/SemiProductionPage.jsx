@@ -102,7 +102,7 @@ export default function SemiProductionPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Yari Mamul Uretim Girisi</h1>
           <p className="text-xs text-slate-500 sm:text-sm">
-            Yari mamul stok girisi yapar, hammadde dusmez
+            Yari mamul stok girisi yapar ve sadece secilen parcaya ait hammaddeyi dusurur
           </p>
         </div>
         <button type="button" onClick={reset} className="btn-secondary text-xs">
@@ -111,7 +111,7 @@ export default function SemiProductionPage() {
       </header>
 
       <div className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800 ring-1 ring-amber-200">
-        Tam mamul uretiminde receteye ekli yari mamuller otomatik dusulur. Tam mamul girisi icin{' '}
+        Tam mamul uretiminde yari mamul stok dusmez; parca receteleri ve ortak recete hammaddeden dusulur. Tam mamul girisi icin{' '}
         <Link to="/production/new" className="font-semibold underline">
           burayi kullan
         </Link>

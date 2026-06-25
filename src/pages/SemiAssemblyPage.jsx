@@ -107,7 +107,7 @@ export default function SemiAssemblyPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Yari Mamul Birlestirme</h1>
-          <p className="text-xs text-slate-500 sm:text-sm">Parca stoklarindan tam mamul olusturur</p>
+          <p className="text-xs text-slate-500 sm:text-sm">Parca stoklarindan tam mamul olusturur, ortak receteyi hammaddeden dusurur</p>
         </div>
       </header>
 

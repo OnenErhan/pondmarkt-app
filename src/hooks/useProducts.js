@@ -223,11 +223,20 @@ export function useRecipe(variantId) {
         .select('recipe_id, input_product_type_id, qty, wastage_pct, product_types(id, code, name)')
         .eq('recipe_id', r.data.id);
       if (typeItems.error) throw typeItems.error;
+      const componentItems = await supabase
+        .from('recipe_component_items')
+        .select(
+          'recipe_id, component_id, material_id, qty, wastage_pct, sort_order, materials(id,code,name,category,unit), product_type_semi_components(id,name,required_qty,sort_order)',
+        )
+        .eq('recipe_id', r.data.id)
+        .order('sort_order');
+      if (componentItems.error && !isMissingTableError(componentItems.error)) throw componentItems.error;
       return {
         recipe: r.data,
         items: items.data,
         variantItems: variantItems.data,
         typeItems: typeItems.data,
+        componentItems: componentItems.data ?? [],
       };
     },
   });
@@ -236,7 +245,7 @@ export function useRecipe(variantId) {
 export function useSaveRecipe() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ variantId, yieldQty, items, variantItems }) => {
+    mutationFn: async ({ variantId, yieldQty, items, variantItems, componentItems }) => {
       // upsert recipe
       let recipeId;
       const existing = await supabase
@@ -265,6 +274,13 @@ export function useSaveRecipe() {
             .delete()
             .eq('recipe_id', recipeId);
           if (delVariantItems.error) throw delVariantItems.error;
+        }
+        const delComponentItems = await supabase
+          .from('recipe_component_items')
+          .delete()
+          .eq('recipe_id', recipeId);
+        if (delComponentItems.error && !isMissingTableError(delComponentItems.error)) {
+          throw delComponentItems.error;
         }
       } else {
         const ins = await supabase
@@ -297,10 +313,23 @@ export function useSaveRecipe() {
         const insVariants = await supabase.from('recipe_variant_items').insert(variantRows);
         if (insVariants.error) throw insVariants.error;
       }
+      if (Array.isArray(componentItems) && componentItems.length) {
+        const componentRows = componentItems.map((it, index) => ({
+          recipe_id: recipeId,
+          component_id: it.component_id,
+          material_id: it.material_id,
+          qty: Number(it.qty),
+          wastage_pct: Number(it.wastage_pct ?? 0),
+          sort_order: Number(it.sort_order ?? index + 1),
+        }));
+        const insComponents = await supabase.from('recipe_component_items').insert(componentRows);
+        if (insComponents.error && !isMissingTableError(insComponents.error)) throw insComponents.error;
+      }
       return recipeId;
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['recipe', vars.variantId] });
+      qc.invalidateQueries({ queryKey: ['materials'] });
     },
   });
 }

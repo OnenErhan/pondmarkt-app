@@ -66,7 +66,7 @@ export default function ProductionWizardPage() {
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Tam Mamul Uretim Girisi</h1>
-          <p className="text-xs text-slate-500 sm:text-sm">Yari mamuller recete uzerinden bu adimda dusulur</p>
+          <p className="text-xs text-slate-500 sm:text-sm">Ortak recete ve parca receteleri bu adimda hammaddeden dusulur</p>
         </div>
         <button type="button" onClick={reset} className="btn-secondary text-xs">
           <RotateCcw size={14} /> Sıfırla
@@ -74,7 +74,7 @@ export default function ProductionWizardPage() {
       </header>
 
       <div className="mb-4 rounded-lg bg-brand-50 px-4 py-3 text-xs text-brand-700 ring-1 ring-brand-200">
-        Yari mamul stok girisi icin <Link to="/production/semi" className="font-semibold underline">ayri ekran</Link> kullan.
+        Yari mamul stok girisi icin <Link to="/production/semi" className="font-semibold underline">ayri ekran</Link> kullan. Tam mamulde yari mamul stok dusmez.
       </div>
 
       {/* Stepper */}

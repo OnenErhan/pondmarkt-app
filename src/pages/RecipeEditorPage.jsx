@@ -1,30 +1,116 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
 import { ArrowLeft, Plus, Trash2, ChefHat, Save, ClipboardPaste, Copy } from 'lucide-react';
 import { supabase } from '../lib/supabase/client.js';
 import { useMaterials, MATERIAL_CATEGORIES } from '../hooks/useMaterials.js';
-import { useRecipe, useSaveRecipe } from '../hooks/useProducts.js';
+import { useProductTypeSemiComponents, useRecipe, useSaveRecipe } from '../hooks/useProducts.js';
 import { toast } from '../components/ui/Toast.jsx';
 import Modal from '../components/ui/Modal.jsx';
+
+const EMPTY_ROW = { material_id: '', qty: '', wastage_pct: 0 };
+
+function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, onAddRow, onRemoveRow, onUpdateRow }) {
+  return (
+    <section className="card flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{section.label}</h2>
+          <p className="mt-1 text-xs text-slate-500">{section.hint}</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{items.length} kalem</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="btn-secondary text-xs" onClick={onCopy}>
+          <Copy size={14} /> Kopyala
+        </button>
+        <button type="button" className="btn-secondary text-xs" onClick={onOpenPaste}>
+          <ClipboardPaste size={14} /> Yapıştır
+        </button>
+        <button type="button" className="btn-secondary text-xs" onClick={onAddRow}>
+          <Plus size={14} /> Kalem Ekle
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="rounded-lg bg-slate-50 px-3 py-6 text-center text-sm text-slate-400">Bu bölümde henüz kalem yok.</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((row, index) => (
+            <div key={`${section.key}-${index}`} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
+              <div className="col-span-12 xl:col-span-6">
+                <label className="label">Malzeme</label>
+                <select
+                  className="input"
+                  value={row.material_id ?? ''}
+                  onChange={(event) => onUpdateRow(index, 'material_id', event.target.value)}
+                  required
+                >
+                  <option value="">— Seç —</option>
+                  {groupedMaterials.map((group) =>
+                    group.materials.length ? (
+                      <optgroup key={group.value} label={group.label}>
+                        {group.materials.map((material) => (
+                          <option key={material.id} value={material.id}>
+                            {material.code} — {material.name} ({material.unit})
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null,
+                  )}
+                </select>
+              </div>
+              <div className="col-span-5 xl:col-span-3">
+                <label className="label">Miktar</label>
+                <input
+                  type="number"
+                  step="0.001"
+                  required
+                  className="input"
+                  value={row.qty ?? ''}
+                  onChange={(event) => onUpdateRow(index, 'qty', event.target.value)}
+                />
+              </div>
+              <div className="col-span-5 xl:col-span-2">
+                <label className="label">Fire %</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input"
+                  value={row.wastage_pct ?? 0}
+                  onChange={(event) => onUpdateRow(index, 'wastage_pct', event.target.value)}
+                />
+              </div>
+              <div className="col-span-2 xl:col-span-1">
+                <button type="button" onClick={() => onRemoveRow(index)} className="btn-secondary !p-2" aria-label="Sil">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function RecipeEditorPage() {
   const { variantId } = useParams();
   const navigate = useNavigate();
   const [variant, setVariant] = useState(null);
-  const { data: materials = [] } = useMaterials();
-  const { data: recipeData, isLoading } = useRecipe(variantId);
-  const save = useSaveRecipe();
-
-  const { register, handleSubmit, control, reset, getValues, watch } = useForm({
-    defaultValues: { yield_qty: 1, items: [] },
-  });
-  const { fields, append, remove, replace } = useFieldArray({ control, name: 'items' });
+  const [yieldQty, setYieldQty] = useState(1);
+  const [commonItems, setCommonItems] = useState([]);
+  const [componentItems, setComponentItems] = useState({});
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [pasteMode, setPasteMode] = useState('append'); // 'append' | 'replace'
+  const [pasteMode, setPasteMode] = useState('append');
+  const [pasteTarget, setPasteTarget] = useState('common');
 
-  // Load variant info
+  const { data: materials = [] } = useMaterials();
+  const { data: recipeData, isLoading } = useRecipe(variantId);
+  const { data: components = [] } = useProductTypeSemiComponents(variant?.product_type_id);
+  const save = useSaveRecipe();
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -40,92 +126,131 @@ export default function RecipeEditorPage() {
     };
   }, [variantId]);
 
-  // Reset form when recipe loads
+  const groupedMaterials = useMemo(
+    () =>
+      MATERIAL_CATEGORIES.map((category) => ({
+        ...category,
+        materials: materials.filter((material) => material.category === category.value),
+      })),
+    [materials],
+  );
+
+  const codeMap = useMemo(
+    () => new Map(materials.map((material) => [String(material.code).trim().toUpperCase(), material])),
+    [materials],
+  );
+
+  const sections = useMemo(
+    () => [
+      ...components.map((component) => ({
+        key: component.id,
+        label: component.name,
+        hint: `${Number(component.required_qty ?? 1).toLocaleString('tr-TR')} adet / tam mamul`,
+      })),
+      {
+        key: 'common',
+        label: 'Ortak Reçete',
+        hint: 'Birleştirme ve tam mamul üretiminde kullanılır',
+      },
+    ],
+    [components],
+  );
+
   useEffect(() => {
-    if (recipeData) {
-      reset({
-        yield_qty: recipeData.recipe?.yield_qty ?? 1,
-        items: recipeData.items.map((it) => ({
-          material_id: it.material_id,
-          qty: it.qty,
-          wastage_pct: it.wastage_pct,
-        })),
+    if (!recipeData) return;
+
+    setYieldQty(recipeData.recipe?.yield_qty ?? 1);
+    setCommonItems(
+      (recipeData.items ?? []).map((item) => ({
+        material_id: item.material_id,
+        qty: item.qty,
+        wastage_pct: item.wastage_pct,
+      })),
+    );
+
+    const nextComponentItems = {};
+    for (const component of components) {
+      nextComponentItems[component.id] = [];
+    }
+    for (const item of recipeData.componentItems ?? []) {
+      if (!nextComponentItems[item.component_id]) {
+        nextComponentItems[item.component_id] = [];
+      }
+      nextComponentItems[item.component_id].push({
+        material_id: item.material_id,
+        qty: item.qty,
+        wastage_pct: item.wastage_pct,
       });
     }
-  }, [recipeData, reset]);
 
-  const onSubmit = async (values) => {
-    const items = values.items.filter((it) => it.material_id && Number(it.qty) > 0);
-    try {
-      await save.mutateAsync({
-        variantId,
-        yieldQty: Number(values.yield_qty) || 1,
-        items,
-      });
-      toast.success('Reçete kaydedildi');
-      navigate(-1);
-    } catch (e) {
-      toast.error(e.message);
+    setComponentItems(nextComponentItems);
+  }, [components, recipeData]);
+
+  useEffect(() => {
+    if (!components.length) return;
+    setComponentItems((current) => {
+      const next = { ...current };
+      for (const component of components) {
+        if (!Array.isArray(next[component.id])) {
+          next[component.id] = [];
+        }
+      }
+      return next;
+    });
+  }, [components]);
+
+  const getSectionItems = (sectionKey) =>
+    sectionKey === 'common' ? commonItems : componentItems[sectionKey] ?? [];
+
+  const setSectionItems = (sectionKey, updater) => {
+    if (sectionKey === 'common') {
+      setCommonItems((current) => (typeof updater === 'function' ? updater(current) : updater));
+      return;
+    }
+
+    setComponentItems((current) => {
+      const previous = current[sectionKey] ?? [];
+      const nextItems = typeof updater === 'function' ? updater(previous) : updater;
+      return { ...current, [sectionKey]: nextItems };
+    });
+  };
+
+  const normalizeRows = (rows) =>
+    (rows ?? [])
+      .map((row) => ({
+        material_id: row.material_id,
+        qty: Number(String(row.qty ?? '').replace(',', '.')),
+        wastage_pct: Number(String(row.wastage_pct ?? 0).replace(',', '.')) || 0,
+      }))
+      .filter((row) => row.material_id && row.qty > 0);
+
+  const validateSectionRows = (rows, sectionLabel) => {
+    const seen = new Set();
+    for (const row of rows) {
+      const key = String(row.material_id ?? '');
+      if (!key) continue;
+      if (seen.has(key)) {
+        throw new Error(`${sectionLabel} içinde aynı malzeme birden fazla kez eklenemez`);
+      }
+      seen.add(key);
     }
   };
 
-  if (isLoading || !variant) return <p className="p-6 text-sm text-slate-400">Yükleniyor...</p>;
-
-  // Materials grouped by category
-  const grouped = MATERIAL_CATEGORIES.map((c) => ({
-    ...c,
-    materials: materials.filter((m) => m.category === c.value),
-  }));
-
-  // Map: KOD (uppercase) -> material
-  const codeMap = new Map(materials.map((m) => [String(m.code).trim().toUpperCase(), m]));
-  const watchedItems = watch('items');
-
-  const materialById = new Map(materials.map((m) => [String(m.id), m]));
-  const rowsByCategory = new Map(MATERIAL_CATEGORIES.map((c) => [c.value, []]));
-  rowsByCategory.set('__uncategorized__', []);
-  rowsByCategory.set('__unselected__', []);
-
-  fields.forEach((f, idx) => {
-    const selectedId = watchedItems?.[idx]?.material_id ?? f.material_id;
-    if (!selectedId) {
-      rowsByCategory.get('__unselected__').push({ field: f, idx });
-      return;
-    }
-
-    const selectedMaterial = materialById.get(String(selectedId));
-    const category = selectedMaterial?.category;
-    if (!category || !rowsByCategory.has(category)) {
-      rowsByCategory.get('__uncategorized__').push({ field: f, idx });
-      return;
-    }
-
-    rowsByCategory.get(category).push({ field: f, idx });
-  });
-
-  const groupedRows = [
-    ...MATERIAL_CATEGORIES.map((c) => ({
-      key: c.value,
-      label: c.label,
-      rows: rowsByCategory.get(c.value) ?? [],
-    })),
-    { key: '__uncategorized__', label: 'Kategorisiz', rows: rowsByCategory.get('__uncategorized__') ?? [] },
-    { key: '__unselected__', label: 'Secilmemis', rows: rowsByCategory.get('__unselected__') ?? [] },
-  ].filter((section) => section.rows.length > 0);
-
-  const handleCopy = async () => {
-    const items = getValues('items') || [];
+  const handleCopy = async (sectionKey) => {
+    const items = normalizeRows(getSectionItems(sectionKey));
     if (items.length === 0) {
       toast.error('Kopyalanacak kalem yok');
       return;
     }
+
     const lines = items
-      .map((it) => {
-        const m = materials.find((x) => x.id === it.material_id);
-        if (!m) return null;
-        return `${m.code}\t${it.qty ?? 0}\t${it.wastage_pct ?? 0}`;
+      .map((item) => {
+        const material = materials.find((entry) => entry.id === item.material_id);
+        if (!material) return null;
+        return `${material.code}\t${item.qty ?? 0}\t${item.wastage_pct ?? 0}`;
       })
       .filter(Boolean);
+
     try {
       await navigator.clipboard.writeText(lines.join('\n'));
       toast.success(`${lines.length} kalem panoya kopyalandı`);
@@ -137,31 +262,39 @@ export default function RecipeEditorPage() {
   const parseRows = (text) => {
     const rows = text
       .split(/\r?\n/)
-      .map((l) => l.trim())
+      .map((line) => line.trim())
       .filter(Boolean);
     const parsed = [];
     const errors = [];
-    rows.forEach((line, i) => {
-      // split by tab, semicolon, or comma (Excel uses tab)
-      const cols = line.split(/[\t;,]+/).map((c) => c.trim());
+
+    rows.forEach((line, index) => {
+      const cols = line.split(/[\t;,]+/).map((cell) => cell.trim());
       if (cols.length < 2) {
-        errors.push(`Satır ${i + 1}: en az KOD ve miktar lazım`);
+        errors.push(`Satır ${index + 1}: en az KOD ve miktar lazım`);
         return;
       }
+
       const code = cols[0].toUpperCase();
       const qty = Number(cols[1].replace(',', '.'));
       const wastage = cols[2] ? Number(cols[2].replace(',', '.')) : 0;
-      const mat = codeMap.get(code);
-      if (!mat) {
-        errors.push(`Satır ${i + 1}: "${code}" bulunamadı`);
+      const material = codeMap.get(code);
+
+      if (!material) {
+        errors.push(`Satır ${index + 1}: "${code}" bulunamadı`);
         return;
       }
       if (!qty || qty <= 0) {
-        errors.push(`Satır ${i + 1}: geçersiz miktar`);
+        errors.push(`Satır ${index + 1}: geçersiz miktar`);
         return;
       }
-      parsed.push({ material_id: mat.id, qty, wastage_pct: Number.isFinite(wastage) ? wastage : 0 });
+
+      parsed.push({
+        material_id: material.id,
+        qty,
+        wastage_pct: Number.isFinite(wastage) ? wastage : 0,
+      });
     });
+
     return { parsed, errors };
   };
 
@@ -171,22 +304,56 @@ export default function RecipeEditorPage() {
       toast.error(errors[0] || 'Satır okunamadı');
       return;
     }
-    if (pasteMode === 'replace') {
-      replace(parsed);
-    } else {
-      parsed.forEach((p) => append(p));
-    }
+
+    setSectionItems(pasteTarget, (rows) => (pasteMode === 'replace' ? parsed : [...rows, ...parsed]));
+
     if (errors.length) {
       toast.info(`${parsed.length} eklendi, ${errors.length} satır atlandı`);
     } else {
       toast.success(`${parsed.length} kalem eklendi`);
     }
+
     setPasteOpen(false);
     setPasteText('');
   };
 
+  const submit = async (event) => {
+    event.preventDefault();
+
+    const normalizedCommonItems = normalizeRows(commonItems);
+    const normalizedComponentItems = components.flatMap((component) =>
+      normalizeRows(componentItems[component.id]).map((row, index) => ({
+        ...row,
+        component_id: component.id,
+        sort_order: index + 1,
+      })),
+    );
+
+    try {
+      validateSectionRows(normalizedCommonItems, 'Ortak reçete');
+      for (const component of components) {
+        validateSectionRows(normalizeRows(componentItems[component.id]), component.name);
+      }
+
+      await save.mutateAsync({
+        variantId,
+        yieldQty: Number(String(yieldQty).replace(',', '.')) || 1,
+        items: normalizedCommonItems,
+        componentItems: normalizedComponentItems,
+      });
+      toast.success('Reçete kaydedildi');
+      navigate(-1);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  if (isLoading || !variant) {
+    return <p className="p-6 text-sm text-slate-400">Yükleniyor...</p>;
+  }
+
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto max-w-[1500px] p-6">
       <Link
         to={`/products/${variant.product_type_id}`}
         className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"
@@ -201,18 +368,19 @@ export default function RecipeEditorPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Reçete</h1>
           <p className="text-sm text-slate-500">
-            <span className="font-mono">{variant.sku}</span> ·{' '}
-            {variant.product_colors?.label} · {variant.product_sizes?.label}
+            <span className="font-mono">{variant.sku}</span> · {variant.product_colors?.label} ·{' '}
+            {variant.product_sizes?.label}
             {recipeData?.recipe?.version && (
               <span className="ml-2 text-xs text-slate-400">
-                v{recipeData.recipe.version} · son {new Date(recipeData.recipe.updated_at).toLocaleDateString('tr-TR')}
+                v{recipeData.recipe.version} · son{' '}
+                {new Date(recipeData.recipe.updated_at).toLocaleDateString('tr-TR')}
               </span>
             )}
           </p>
         </div>
       </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={submit} className="space-y-4">
         <div className="card grid gap-4 sm:grid-cols-3">
           <div>
             <label className="label">1 reçete kaç adet üretir? *</label>
@@ -221,122 +389,49 @@ export default function RecipeEditorPage() {
               step="0.001"
               required
               className="input"
-              {...register('yield_qty')}
+              value={yieldQty}
+              onChange={(event) => setYieldQty(event.target.value)}
             />
             <p className="mt-1 text-xs text-slate-500">
               Aşağıdaki kalemler bu adet için yazılacak. Üretimde adet/yield çarpanı uygulanır.
             </p>
             <p className="mt-1 text-xs text-amber-700">
-              Yari mamul bilesen yonetimi urun detayinda varyant kartindaki YM butonundan yapilir.
+              Parça kolonları yarı mamül üretiminde kendi hammaddesini düşer. Ortak reçete, birleştirme ve tam mamülde kullanılır.
             </p>
           </div>
         </div>
 
-        <div className="card">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold">Malzemeler</h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="btn-secondary text-xs"
-                onClick={handleCopy}
-                title="Mevcut kalemleri panoya kopyala"
-              >
-                <Copy size={14} /> Kopyala
-              </button>
-              <button
-                type="button"
-                className="btn-secondary text-xs"
-                onClick={() => setPasteOpen(true)}
-                title="Excel'den / panodan yapıştır"
-              >
-                <ClipboardPaste size={14} /> Yapıştır
-              </button>
-              <button
-                type="button"
-                className="btn-secondary text-xs"
-                onClick={() => append({ material_id: '', qty: '', wastage_pct: 0 })}
-              >
-                <Plus size={14} /> Kalem Ekle
-              </button>
-            </div>
-          </div>
-
-          {fields.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">
-              Henüz kalem yok. Yukarıdaki butondan ekleyin.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {groupedRows.map((section) => (
-                <section key={section.key} className="space-y-2">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                    <h3 className="text-sm font-semibold text-slate-700">{section.label}</h3>
-                    <span className="text-xs text-slate-500">{section.rows.length} kalem</span>
-                  </div>
-
-                  {section.rows.map(({ field, idx }) => (
-                    <div key={field.id} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
-                      <div className="col-span-6">
-                        <label className="label">Malzeme</label>
-                        <select className="input" {...register(`items.${idx}.material_id`)} required>
-                          <option value="">— Seç —</option>
-                          {grouped.map((g) =>
-                            g.materials.length ? (
-                              <optgroup key={g.value} label={g.label}>
-                                {g.materials.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.code} — {m.name} ({m.unit})
-                                  </option>
-                                ))}
-                              </optgroup>
-                            ) : null,
-                          )}
-                        </select>
-                      </div>
-                      <div className="col-span-3">
-                        <label className="label">Miktar</label>
-                        <input
-                          type="number"
-                          step="0.001"
-                          required
-                          className="input"
-                          {...register(`items.${idx}.qty`)}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="label">Fire %</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="input"
-                          {...register(`items.${idx}.wastage_pct`)}
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <button
-                          type="button"
-                          onClick={() => remove(idx)}
-                          className="btn-secondary !p-2"
-                          aria-label="Sil"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </section>
-              ))}
-            </div>
-          )}
+        <div className="grid gap-4 xl:grid-cols-3">
+          {sections.map((section) => (
+            <RecipeSection
+              key={section.key}
+              section={section}
+              items={getSectionItems(section.key)}
+              groupedMaterials={groupedMaterials}
+              onCopy={() => handleCopy(section.key)}
+              onOpenPaste={() => {
+                setPasteTarget(section.key);
+                setPasteOpen(true);
+              }}
+              onAddRow={() => setSectionItems(section.key, (rows) => [...rows, { ...EMPTY_ROW }])}
+              onRemoveRow={(index) =>
+                setSectionItems(section.key, (rows) => rows.filter((_, rowIndex) => rowIndex !== index))
+              }
+              onUpdateRow={(index, field, value) =>
+                setSectionItems(section.key, (rows) =>
+                  rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
+                )
+              }
+            />
+          ))}
         </div>
 
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={() => navigate(-1)}>
             Vazgeç
           </button>
-          <button type="submit" className="btn-primary">
-            <Save size={16} /> Kaydet
+          <button type="submit" className="btn-primary" disabled={save.isPending}>
+            <Save size={16} /> {save.isPending ? 'Kaydediliyor...' : 'Kaydet'}
           </button>
         </div>
       </form>
@@ -344,7 +439,7 @@ export default function RecipeEditorPage() {
       <Modal
         open={pasteOpen}
         onClose={() => setPasteOpen(false)}
-        title="Reçete kalemlerini yapıştır"
+        title={`Reçete kalemlerini yapıştır${pasteTarget === 'common' ? ' - Ortak Reçete' : ''}`}
         size="lg"
         footer={
           <>
@@ -359,17 +454,17 @@ export default function RecipeEditorPage() {
       >
         <div className="space-y-3">
           <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-            <p className="font-medium text-slate-800">Format: <code>KOD miktar fire%</code> (her satırda bir kalem)</p>
+            <p className="font-medium text-slate-800">Format: <code>KOD	miktar	fire%</code> (her satırda bir kalem)</p>
             <p className="mt-1">Ayıraç: <kbd>Tab</kbd> (Excel’den kopyala-yapıştır), nokta-virgül veya virgül. Fire% opsiyonel.</p>
-            <pre className="mt-2 rounded bg-white p-2 text-[11px] text-slate-700 ring-1 ring-slate-200">PLY-01〉0.5〉5
-MEK-01〉0.02
-BOY-KRM〉0.05〉2</pre>
+            <pre className="mt-2 rounded bg-white p-2 text-[11px] text-slate-700 ring-1 ring-slate-200">PLY-01	0.5	5
+MEK-01	0.02
+BOY-KRM	0.05	2</pre>
           </div>
           <textarea
             className="input min-h-[180px] font-mono text-sm"
             placeholder="Excel'den kopyalayıp buraya yapıştır..."
             value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
+            onChange={(event) => setPasteText(event.target.value)}
             autoFocus
           />
           <div className="flex items-center gap-4 text-sm">

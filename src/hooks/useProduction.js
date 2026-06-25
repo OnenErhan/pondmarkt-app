@@ -303,6 +303,7 @@ export function useRecordSemiProduction() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['materials'] });
       qc.invalidateQueries({ queryKey: ['warehouse'] });
     },
   });
@@ -328,6 +329,7 @@ export function useRecordSemiAssembly() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['materials'] });
       qc.invalidateQueries({ queryKey: ['warehouse'] });
     },
   });
