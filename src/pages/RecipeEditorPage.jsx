@@ -41,7 +41,7 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
               <div className="col-span-12 xl:col-span-6">
                 <label className="label">Malzeme</label>
                 <select
-                  className="input"
+                  className="input text-sm"
                   value={row.material_id ?? ''}
                   onChange={(event) => onUpdateRow(index, 'material_id', event.target.value)}
                   required
@@ -66,7 +66,7 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
                   type="number"
                   step="0.001"
                   required
-                  className="input"
+                  className="input text-sm"
                   value={row.qty ?? ''}
                   onChange={(event) => onUpdateRow(index, 'qty', event.target.value)}
                 />
@@ -76,7 +76,7 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
                 <input
                   type="number"
                   step="0.01"
-                  className="input"
+                  className="input text-sm"
                   value={row.wastage_pct ?? 0}
                   onChange={(event) => onUpdateRow(index, 'wastage_pct', event.target.value)}
                 />
