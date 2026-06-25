@@ -9,7 +9,19 @@ import Modal from '../components/ui/Modal.jsx';
 
 const EMPTY_ROW = { material_id: '', qty: '', wastage_pct: 0 };
 
-function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, onAddRow, onRemoveRow, onUpdateRow }) {
+const formatMaterialOptionLabel = (material) => `${material.code} — ${material.name} (${material.unit})`;
+
+function RecipeSection({
+  section,
+  items,
+  groupedMaterials,
+  materialMap,
+  onCopy,
+  onOpenPaste,
+  onAddRow,
+  onRemoveRow,
+  onUpdateRow,
+}) {
   return (
     <section className="card flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
@@ -36,7 +48,11 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
         <p className="rounded-lg bg-slate-50 px-3 py-6 text-center text-sm text-slate-400">Bu bölümde henüz kalem yok.</p>
       ) : (
         <div className="space-y-3">
-          {items.map((row, index) => (
+          {items.map((row, index) => {
+            const selectedMaterial = materialMap.get(String(row.material_id ?? ''));
+            const selectedLabel = selectedMaterial ? formatMaterialOptionLabel(selectedMaterial) : '';
+
+            return (
             <div key={`${section.key}-${index}`} className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3">
               <div className="col-span-12 xl:col-span-6">
                 <label className="label">Malzeme</label>
@@ -44,6 +60,7 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
                   className="input text-sm"
                   value={row.material_id ?? ''}
                   onChange={(event) => onUpdateRow(index, 'material_id', event.target.value)}
+                  title={selectedLabel}
                   required
                 >
                   <option value="">— Seç —</option>
@@ -52,13 +69,14 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
                       <optgroup key={group.value} label={group.label}>
                         {group.materials.map((material) => (
                           <option key={material.id} value={material.id}>
-                            {material.code} — {material.name} ({material.unit})
+                            {formatMaterialOptionLabel(material)}
                           </option>
                         ))}
                       </optgroup>
                     ) : null,
                   )}
                 </select>
+                {selectedLabel ? <p className="mt-1 break-words text-xs leading-5 text-slate-500">{selectedLabel}</p> : null}
               </div>
               <div className="col-span-5 xl:col-span-3">
                 <label className="label">Miktar</label>
@@ -87,7 +105,8 @@ function RecipeSection({ section, items, groupedMaterials, onCopy, onOpenPaste, 
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
@@ -137,6 +156,11 @@ export default function RecipeEditorPage() {
 
   const codeMap = useMemo(
     () => new Map(materials.map((material) => [String(material.code).trim().toUpperCase(), material])),
+    [materials],
+  );
+
+  const materialMap = useMemo(
+    () => new Map(materials.map((material) => [String(material.id), material])),
     [materials],
   );
 
@@ -408,6 +432,7 @@ export default function RecipeEditorPage() {
               section={section}
               items={getSectionItems(section.key)}
               groupedMaterials={groupedMaterials}
+              materialMap={materialMap}
               onCopy={() => handleCopy(section.key)}
               onOpenPaste={() => {
                 setPasteTarget(section.key);
