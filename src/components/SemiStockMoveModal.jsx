@@ -20,18 +20,19 @@ export default function SemiStockMoveModal({ open, onClose, row, type = 'out' })
   const [source, setSource] = useState(SOURCES[type][0].value);
   const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
-  const [restoreMaterials, setRestoreMaterials] = useState(false);
+  const [restoreMaterials, setRestoreMaterials] = useState(type === 'out' && SOURCES[type][0].value === 'manual');
 
   useEffect(() => {
     setMoveType(type);
     setSource(SOURCES[type][0].value);
-    setRestoreMaterials(false);
+    setRestoreMaterials(type === 'out' && SOURCES[type][0].value === 'manual');
   }, [type, row?.variant_id, row?.component_id]);
 
   const switchType = (next) => {
+    const nextSource = SOURCES[next][0].value;
     setMoveType(next);
-    setSource(SOURCES[next][0].value);
-    setRestoreMaterials(false);
+    setSource(nextSource);
+    setRestoreMaterials(next === 'out' && nextSource === 'manual');
   };
 
   const changeSource = (next) => {
