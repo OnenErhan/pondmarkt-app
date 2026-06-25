@@ -20,15 +20,23 @@ export default function SemiStockMoveModal({ open, onClose, row, type = 'out' })
   const [source, setSource] = useState(SOURCES[type][0].value);
   const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
+  const [restoreMaterials, setRestoreMaterials] = useState(false);
 
   useEffect(() => {
     setMoveType(type);
     setSource(SOURCES[type][0].value);
+    setRestoreMaterials(false);
   }, [type, row?.variant_id, row?.component_id]);
 
   const switchType = (next) => {
     setMoveType(next);
     setSource(SOURCES[next][0].value);
+    setRestoreMaterials(false);
+  };
+
+  const changeSource = (next) => {
+    setSource(next);
+    setRestoreMaterials(moveType === 'out' && next === 'manual');
   };
 
   const submit = async () => {
@@ -47,13 +55,16 @@ export default function SemiStockMoveModal({ open, onClose, row, type = 'out' })
         variantId: row.variant_id,
         componentId: row.component_id,
         type: moveType,
+        source,
         qty: q,
+        restoreMaterials: moveType === 'out' && source === 'manual' ? restoreMaterials : false,
         note: [source === 'transfer' ? 'Transfer' : 'Manuel', note].filter(Boolean).join(' - '),
       });
       toast.success(moveType === 'in' ? `${q} adet giris yapildi` : `${q} adet cikis yapildi`);
       onClose?.();
       setQty('');
       setNote('');
+      setRestoreMaterials(false);
     } catch (e) {
       toast.error(e.message);
     }
@@ -121,7 +132,7 @@ export default function SemiStockMoveModal({ open, onClose, row, type = 'out' })
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Tip</label>
-            <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+            <select className="input" value={source} onChange={(e) => changeSource(e.target.value)}>
               {SOURCES[moveType].map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -142,6 +153,20 @@ export default function SemiStockMoveModal({ open, onClose, row, type = 'out' })
             />
           </div>
         </div>
+
+        {moveType === 'out' && source === 'manual' && (
+          <label className="flex items-start gap-3 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={restoreMaterials}
+              onChange={(e) => setRestoreMaterials(e.target.checked)}
+            />
+            <span>
+              Yanlis yari mamul uretim girisiyse, bu cikista ilgili parcanin recetesindeki hammaddeleri geri ekle.
+            </span>
+          </label>
+        )}
 
         <div>
           <label className="label">Not</label>

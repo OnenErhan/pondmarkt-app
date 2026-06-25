@@ -130,18 +130,47 @@ export function useRecordWarehouseMove() {
 export function useRecordSemiComponentMove() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ variantId, componentId, type, qty, note }) => {
-      const { data, error } = await supabase.rpc('record_semi_component_manual_move', {
+    mutationFn: async ({ variantId, componentId, type, qty, note, source, restoreMaterials }) => {
+      const params = {
         p_variant_id: variantId,
         p_component_id: componentId,
         p_type: type,
         p_qty: qty,
         p_note: note ?? null,
-      });
+        p_source: source ?? 'manual',
+        p_restore_materials: restoreMaterials === true,
+      };
+
+      const wantsRestore = restoreMaterials === true;
+      const call = (rpcParams) => supabase.rpc('record_semi_component_manual_move', rpcParams);
+
+      let { data, error } = await call(params);
+
+      const missingNewSignature =
+        error &&
+        (error.code === 'PGRST202' || /Could not find the function .*record_semi_component_manual_move/i.test(error.message ?? ''));
+
+      if (missingNewSignature && !wantsRestore) {
+        ({ data, error } = await call({
+          p_variant_id: variantId,
+          p_component_id: componentId,
+          p_type: type,
+          p_qty: qty,
+          p_note: note ?? null,
+        }));
+      }
+
+      if (missingNewSignature && wantsRestore) {
+        throw new Error('Yari mamul icin hammadde geri yukleme migrationi eksik. 0017 migrationini Supabase tarafinda uygulayin.');
+      }
+
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['materials'] });
+    },
   });
 }
 
