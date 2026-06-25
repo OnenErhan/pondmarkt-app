@@ -44,16 +44,16 @@ function MaterialSelect({ value, groupedMaterials, materialMap, onChange }) {
     <div ref={rootRef} className="relative min-w-0">
       <button
         type="button"
-        className={`input flex min-h-[3.4rem] items-start justify-between gap-2 py-2 text-left ${open ? 'border-brand-500 ring-2 ring-brand-100' : ''}`}
+        className={`input flex h-[46px] items-center justify-between gap-2 py-2 text-left ${open ? 'border-brand-500 ring-2 ring-brand-100' : ''}`}
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={selectedMaterial ? selectedLabel : undefined}
       >
-        <span className={`block min-w-0 flex-1 whitespace-normal break-words pr-1 text-[13px] leading-5 ${selectedMaterial ? 'text-slate-800' : 'text-slate-400'}`}>
+        <span className={`block min-w-0 flex-1 truncate pr-1 text-sm ${selectedMaterial ? 'text-slate-800' : 'text-slate-400'}`}>
           {selectedLabel}
         </span>
-        <ChevronDown size={16} className={`mt-1 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open ? (
@@ -149,7 +149,7 @@ function RecipeSection({
           {items.map((row, index) => (
             <div
               key={`${section.key}-${index}`}
-              className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(7rem,0.85fr)_minmax(5rem,0.6fr)_auto]"
+              className="grid grid-cols-12 items-end gap-2 rounded-lg bg-slate-50 p-3 xl:grid-cols-[minmax(0,2.7fr)_minmax(6.5rem,0.75fr)_minmax(5rem,0.55fr)_auto]"
             >
               <div className="col-span-12 min-w-0 xl:col-span-1">
                 <label className="label">Malzeme</label>
