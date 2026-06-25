@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ClipboardList, XCircle, Plus, Filter, Tag, RefreshCw } from 'lucide-react';
-import { useProductionList, useSemiAssemblyList, useVoidProduction } from '../hooks/useProduction.js';
+import {
+  useProductionList,
+  useSemiAssemblyList,
+  useVoidProduction,
+  useVoidSemiProduction,
+  useVoidSemiAssembly,
+} from '../hooks/useProduction.js';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import { toast } from '../components/ui/Toast.jsx';
@@ -25,9 +31,12 @@ export default function ProductionListPage() {
     isFetching: isAssemblyFetching,
   } = useSemiAssemblyList({ from, to });
   const voidM = useVoidProduction();
+  const voidSemiM = useVoidSemiProduction();
+  const voidAssemblyM = useVoidSemiAssembly();
   const navigate = useNavigate();
   const [voiding, setVoiding] = useState(null);
   const [reason, setReason] = useState('');
+  const isVoiding = voidM.isPending || voidSemiM.isPending || voidAssemblyM.isPending;
 
   const historyRows = useMemo(() => {
     const fullRows = items.map((row) => ({
@@ -49,8 +58,14 @@ export default function ProductionListPage() {
 
   const confirmVoid = async () => {
     try {
-      await voidM.mutateAsync({ entryId: voiding.id, reason });
-      toast.success('Üretim iptal edildi, hammaddeler geri verildi');
+      if (voiding.entry_kind === 'semi') {
+        await voidSemiM.mutateAsync({ entryId: voiding.id, reason });
+      } else if (voiding.entry_kind === 'assembly') {
+        await voidAssemblyM.mutateAsync({ entryId: voiding.id, reason });
+      } else {
+        await voidM.mutateAsync({ entryId: voiding.id, reason });
+      }
+      toast.success('Uretim iptal edildi, stok hareketleri geri alindi');
       setVoiding(null);
       setReason('');
     } catch (e) {
@@ -119,12 +134,13 @@ export default function ProductionListPage() {
             <tbody className="divide-y divide-slate-50">
               {historyRows.map((e) => {
                 const isAssembly = e.entry_kind === 'assembly';
-                const cost = isAssembly
-                  ? 0
-                  : (e.production_consumed ?? []).reduce(
+                const consumedRows = isAssembly
+                  ? e.semi_component_assembly_material_consumed ?? []
+                  : e.production_consumed ?? [];
+                const cost = consumedRows.reduce(
                   (s, c) => s + Number(c.qty ?? 0) * Number(c.materials?.last_price ?? 0),
                   0,
-                  );
+                );
                 const unitCost = Number(e.qty) > 0 ? cost / Number(e.qty) : 0;
                 return (
                 <tr
@@ -173,7 +189,7 @@ export default function ProductionListPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!isAssembly && cost > 0 ? (
+                    {cost > 0 ? (
                       <div className="leading-tight">
                         <div className="font-semibold text-slate-700">
                           ₺ {cost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -187,26 +203,28 @@ export default function ProductionListPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!e.voided && !isAssembly && (
+                    {!e.voided && (
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(
-                              `/products/${e.variant_id}/label?qty=${e.qty}&serial=true`,
-                            )
-                          }
-                          className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"
-                          title="Seri numaralı etiket yazdır"
-                        >
-                          <Tag size={13} /> Etiket
-                        </button>
+                        {!isAssembly && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                `/products/${e.variant_id}/label?qty=${e.qty}&serial=true`,
+                              )
+                            }
+                            className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"
+                            title="Seri numarali etiket yazdir"
+                          >
+                            <Tag size={13} /> Etiket
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setVoiding(e)}
                           className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-100"
                         >
-                          <XCircle size={13} /> İptal
+                          <XCircle size={13} /> Iptal
                         </button>
                       </div>
                     )}
@@ -269,10 +287,18 @@ export default function ProductionListPage() {
                   <th className="px-4 py-3">Tuketilen Parcalar</th>
                   <th className="px-4 py-3">Not</th>
                   <th className="px-4 py-3">Durum</th>
+                  <th className="px-4 py-3 text-right">Maliyet</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {assemblyItems.map((e) => (
+                {assemblyItems.map((e) => {
+                  const cost = (e.semi_component_assembly_material_consumed ?? []).reduce(
+                    (s, c) => s + Number(c.qty ?? 0) * Number(c.materials?.last_price ?? 0),
+                    0,
+                  );
+                  const unitCost = Number(e.qty) > 0 ? cost / Number(e.qty) : 0;
+                  return (
                   <tr key={e.id} className={`text-sm ${e.voided ? 'bg-red-50/40 text-slate-400 line-through' : 'hover:bg-slate-50'}`}>
                     <td className="px-4 py-3">{new Date(e.date).toLocaleDateString('tr-TR')}</td>
                     <td className="px-4 py-3 font-medium">
@@ -299,8 +325,34 @@ export default function ProductionListPage() {
                         </span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      {cost > 0 ? (
+                        <div className="leading-tight">
+                          <div className="font-semibold text-slate-700">
+                            ₺ {cost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            birim ₺ {unitCost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {!e.voided && (
+                        <button
+                          type="button"
+                          onClick={() => setVoiding({ ...e, entry_kind: 'assembly' })}
+                          className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-100"
+                        >
+                          <XCircle size={13} /> Iptal
+                        </button>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>
@@ -317,8 +369,8 @@ export default function ProductionListPage() {
             <button className="btn-secondary" onClick={() => setVoiding(null)}>
               Vazgeç
             </button>
-            <button className="btn-danger" onClick={confirmVoid} disabled={voidM.isPending}>
-              {voidM.isPending ? 'İptal ediliyor...' : 'Evet, iptal et'}
+            <button className="btn-danger" onClick={confirmVoid} disabled={isVoiding}>
+              {isVoiding ? 'Iptal ediliyor...' : 'Evet, iptal et'}
             </button>
           </>
         }
@@ -329,7 +381,7 @@ export default function ProductionListPage() {
               <span className="font-medium">{voiding.qty}</span> adet{' '}
               <span className="font-medium">{voiding.product_variants?.product_types?.name}</span> üretimi geri alınacak. Tüketilen hammaddeler depoya iade edilecek.
             </p>
-            {Number(voiding.product_variants?.current_stock ?? 0) < Number(voiding.qty) && (
+            {voiding.entry_kind !== 'semi' && Number(voiding.product_variants?.current_stock ?? 0) < Number(voiding.qty) && (
               <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800 ring-1 ring-amber-200">
                 Uyarı: Mevcut depo stoğu bu üretimden az olabilir. Eğer satıldıysa iptal başarısız olur.
               </p>

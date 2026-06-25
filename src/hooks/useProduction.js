@@ -75,7 +75,7 @@ export function useProductionList({ from, to, variantId } = {}) {
           supabase
             .from('semi_component_production_entries')
             .select(
-              'id, date, qty, variant_id, component_id, operator_note, created_at, product_type_semi_components(name)',
+              'id, date, qty, variant_id, component_id, operator_note, voided, voided_at, void_reason, created_at, product_type_semi_components(name), semi_component_production_consumed(qty, materials(last_price))',
             ),
         );
         const semiComponent = await semiComponentQuery;
@@ -86,10 +86,7 @@ export function useProductionList({ from, to, variantId } = {}) {
               (semiComponent.data ?? []).map((row) => ({
                 ...row,
                 entry_kind: 'semi',
-                voided: false,
-                voided_at: null,
-                void_reason: null,
-                production_consumed: [],
+                production_consumed: row.semi_component_production_consumed ?? [],
                 production_consumed_variants: [],
                 component_name: row.product_type_semi_components?.name ?? null,
               })),
@@ -127,7 +124,9 @@ export function useSemiProductionList({ from, to, variantId } = {}) {
     queryFn: async () => {
       let query = supabase
         .from('semi_component_production_entries')
-        .select('id, date, qty, variant_id, component_id, operator_note, created_at, product_type_semi_components(name)')
+        .select(
+          'id, date, qty, variant_id, component_id, operator_note, voided, voided_at, void_reason, created_at, product_type_semi_components(name), semi_component_production_consumed(qty, materials(last_price))',
+        )
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(500);
@@ -152,10 +151,7 @@ export function useSemiProductionList({ from, to, variantId } = {}) {
       return (data ?? []).map((row) => ({
         ...row,
         entry_kind: 'semi',
-        voided: false,
-        voided_at: null,
-        void_reason: null,
-        production_consumed: [],
+        production_consumed: row.semi_component_production_consumed ?? [],
         production_consumed_variants: [],
         component_name: row.product_type_semi_components?.name ?? null,
         product_variants: byId.get(row.variant_id) ?? null,
@@ -209,7 +205,7 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
         supabase
           .from('semi_component_assembly_entries')
           .select(
-            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, semi_component_assembly_consumed(qty, product_type_semi_components(name))',
+            'id, date, qty, variant_id, operator_note, voided, voided_at, void_reason, created_at, semi_component_assembly_consumed(qty, product_type_semi_components(name)), semi_component_assembly_material_consumed(qty, materials(last_price))',
           ),
       );
       const rich = await richQuery;
@@ -235,6 +231,7 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
           return enriched.map((row) => ({
             ...row,
             semi_component_assembly_consumed: [],
+            semi_component_assembly_material_consumed: [],
           }));
         }
         logSemiAssemblyDebug('lean-query-error', lean.error);
@@ -261,6 +258,7 @@ export function useSemiAssemblyList({ from, to, variantId } = {}) {
       return enrichedLegacy.map((row) => ({
         ...row,
         semi_component_assembly_consumed: [],
+        semi_component_assembly_material_consumed: [],
       }));
     },
   });
@@ -340,6 +338,42 @@ export function useVoidProduction() {
   return useMutation({
     mutationFn: async ({ entryId, reason }) => {
       const { error } = await supabase.rpc('void_production', {
+        p_entry_id: entryId,
+        p_reason: reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['materials'] });
+      qc.invalidateQueries({ queryKey: ['warehouse'] });
+    },
+  });
+}
+
+export function useVoidSemiProduction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entryId, reason }) => {
+      const { error } = await supabase.rpc('void_semi_component_production', {
+        p_entry_id: entryId,
+        p_reason: reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ['materials'] });
+      qc.invalidateQueries({ queryKey: ['warehouse'] });
+    },
+  });
+}
+
+export function useVoidSemiAssembly() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entryId, reason }) => {
+      const { error } = await supabase.rpc('void_semi_component_assembly', {
         p_entry_id: entryId,
         p_reason: reason ?? null,
       });

@@ -276,8 +276,9 @@ function useSemiProductionReport(from, to) {
       const { data, error } = await supabase
         .from('semi_component_production_entries')
         .select(
-          'id, date, qty, variant_id, operator_note, product_type_semi_components(name)',
+          'id, date, qty, variant_id, operator_note, voided, product_type_semi_components(name)',
         )
+        .eq('voided', false)
         .gte('date', from)
         .lte('date', to)
         .order('date');
@@ -530,21 +531,16 @@ function useConsumptionReport(from, to) {
   return useQuery({
     queryKey: ['report', 'consumption', from, to],
     queryFn: async () => {
-      // get entries in range, then their consumed
-      const entries = await supabase
-        .from('production_entries')
-        .select('id')
-        .eq('voided', false)
-        .gte('date', from)
-        .lte('date', to);
-      if (entries.error) throw entries.error;
-      const ids = (entries.data || []).map((e) => e.id);
-      if (ids.length === 0) return [];
       const { data, error } = await supabase
-        .from('production_consumed')
+        .from('material_stock_moves')
         .select('qty, materials(code,name,unit,category,last_price)')
-        .in('entry_id', ids);
+        .eq('type', 'out')
+        .in('ref_type', ['production', 'semi_component_production', 'semi_component_assembly'])
+        .gte('date', from)
+        .lte('date', `${to}T23:59:59`);
+
       if (error) throw error;
+
       return data || [];
     },
   });
