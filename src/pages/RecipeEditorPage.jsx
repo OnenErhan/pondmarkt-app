@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, ChefHat, Save, ClipboardPaste, Copy } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ChefHat, Save, ClipboardPaste, Copy, ChevronDown, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase/client.js';
 import { useMaterials, MATERIAL_CATEGORIES } from '../hooks/useMaterials.js';
 import { useProductTypeSemiComponents, useRecipe, useSaveRecipe } from '../hooks/useProducts.js';
@@ -11,10 +11,109 @@ const EMPTY_ROW = { material_id: '', qty: '', wastage_pct: 0 };
 
 const formatMaterialOptionLabel = (material) => `${material.code} — ${material.name} (${material.unit})`;
 
+function MaterialSelect({ value, groupedMaterials, materialMap, onChange }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selectedMaterial = materialMap.get(String(value ?? ''));
+  const selectedLabel = selectedMaterial ? formatMaterialOptionLabel(selectedMaterial) : '— Seç —';
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <button
+        type="button"
+        className={`input flex min-h-[4.25rem] items-start justify-between gap-2 text-left ${open ? 'border-brand-500 ring-2 ring-brand-100' : ''}`}
+        onClick={() => setOpen((current) => !current)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={selectedMaterial ? selectedLabel : undefined}
+      >
+        <span className={`block min-w-0 flex-1 whitespace-normal break-words pr-1 text-sm leading-5 ${selectedMaterial ? 'text-slate-800' : 'text-slate-400'}`}>
+          {selectedLabel}
+        </span>
+        <ChevronDown size={16} className={`mt-1 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 z-30 mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl ring-1 ring-slate-100">
+          <button
+            type="button"
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 ${value ? 'text-slate-600' : 'bg-slate-50 text-slate-900'}`}
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+            role="option"
+            aria-selected={!value}
+          >
+            <span>— Seç —</span>
+            {!value ? <Check size={14} className="shrink-0 text-brand-600" /> : null}
+          </button>
+
+          {groupedMaterials.map((group) =>
+            group.materials.length ? (
+              <div key={group.value} className="mt-2 first:mt-0">
+                <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</div>
+                <div className="space-y-1">
+                  {group.materials.map((material) => {
+                    const optionLabel = formatMaterialOptionLabel(material);
+                    const isSelected = String(value ?? '') === String(material.id);
+
+                    return (
+                      <button
+                        key={material.id}
+                        type="button"
+                        className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50 ${isSelected ? 'bg-brand-50 text-brand-900' : 'text-slate-700'}`}
+                        onClick={() => {
+                          onChange(material.id);
+                          setOpen(false);
+                        }}
+                        role="option"
+                        aria-selected={isSelected}
+                        title={optionLabel}
+                      >
+                        <span className="min-w-0 flex-1 whitespace-normal break-words text-sm leading-5">{optionLabel}</span>
+                        {isSelected ? <Check size={14} className="mt-1 shrink-0 text-brand-600" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null,
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RecipeSection({
   section,
   items,
   groupedMaterials,
+  materialMap,
   onCopy,
   onOpenPaste,
   onAddRow,
@@ -54,25 +153,12 @@ function RecipeSection({
             >
               <div className="col-span-12 min-w-0 xl:col-span-1">
                 <label className="label">Malzeme</label>
-                <select
-                  className="input text-sm"
+                <MaterialSelect
                   value={row.material_id ?? ''}
-                  onChange={(event) => onUpdateRow(index, 'material_id', event.target.value)}
-                  required
-                >
-                  <option value="">— Seç —</option>
-                  {groupedMaterials.map((group) =>
-                    group.materials.length ? (
-                      <optgroup key={group.value} label={group.label}>
-                        {group.materials.map((material) => (
-                          <option key={material.id} value={material.id}>
-                            {formatMaterialOptionLabel(material)}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null,
-                  )}
-                </select>
+                  groupedMaterials={groupedMaterials}
+                  materialMap={materialMap}
+                  onChange={(value) => onUpdateRow(index, 'material_id', value)}
+                />
               </div>
               <div className="col-span-5 xl:col-span-1">
                 <label className="label">Miktar</label>
@@ -151,6 +237,11 @@ export default function RecipeEditorPage() {
 
   const codeMap = useMemo(
     () => new Map(materials.map((material) => [String(material.code).trim().toUpperCase(), material])),
+    [materials],
+  );
+
+  const materialMap = useMemo(
+    () => new Map(materials.map((material) => [String(material.id), material])),
     [materials],
   );
 
@@ -422,6 +513,7 @@ export default function RecipeEditorPage() {
               section={section}
               items={getSectionItems(section.key)}
               groupedMaterials={groupedMaterials}
+              materialMap={materialMap}
               onCopy={() => handleCopy(section.key)}
               onOpenPaste={() => {
                 setPasteTarget(section.key);
